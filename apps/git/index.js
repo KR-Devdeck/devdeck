@@ -2,96 +2,246 @@ import simpleGit from 'simple-git';
 import inquirer from 'inquirer';
 import chalk from 'chalk';
 import ora from 'ora';
+import fs from 'fs'; // 파일 생성을 위해 추가
 
 const git = simpleGit();
 
+// 🎨 상태별 아이콘
+const getFileIcon = (status) => {
+  if (status === '?') return '❓'; 
+  if (status === 'M') return '📝'; 
+  if (status === 'A') return '✨'; 
+  if (status === 'D') return '🗑 '; 
+  return '📄';
+};
+
 export const runGit = async () => {
-  // 1. Git 레포지토리인지 확인
   const isRepo = await git.checkIsRepo();
   if (!isRepo) {
     console.log(chalk.red('❌ 현재 폴더는 Git 저장소가 아닙니다.'));
     return;
   }
-  
-  console.clear();
-  console.log(chalk.blue.bold('🐙 DevDeck Git Manager'));
-  await gitLoop();
+  await gitMenuLoop();
 };
 
-const gitLoop = async () => {
-  // 상태 확인
-  const status = await git.status();
+const gitMenuLoop = async () => {
+  console.clear();
   
-  // 변경사항이 있으면 보여줌
-  if (status.files.length > 0) {
-    console.log(chalk.dim('─'.repeat(40)));
-    status.files.forEach(f => {
-      const icon = f.index === '?' ? '❓' : '📝';
-      const color = f.index === '?' ? chalk.red : chalk.green;
-      console.log(`${icon} ${color(f.path)}`);
-    });
-    console.log(chalk.dim('─'.repeat(40)));
+  const status = await git.status();
+  const currentBranch = status.current;
+  
+  // [핵심] node_modules 등 불필요한 파일은 카운트에서도 제외
+  const cleanFiles = status.files.filter(f => !f.path.includes('node_modules/'));
+  const changedCount = cleanFiles.length;
+
+  console.log(chalk.blue.bold('╔══════════════════════════════════════════╗'));
+  console.log(chalk.blue.bold(`║ 🐙 DevDeck Git Manager                   ║`));
+  console.log(chalk.blue.bold(`║ 🌿 Branch: ${chalk.green(currentBranch.padEnd(29))} ║`));
+  console.log(chalk.blue.bold(`║ 📝 Changes: ${chalk.yellow(String(changedCount).padEnd(28))} ║`));
+  console.log(chalk.blue.bold('╚══════════════════════════════════════════╝'));
+
+  const { action } = await inquirer.prompt([
+    {
+      type: 'list',
+      name: 'action',
+      message: '무엇을 하시겠습니까?',
+      pageSize: 14,
+      choices: [
+        { name: `📦 변경사항 스테이징 (Add) [${changedCount}]`, value: 'add' },
+        { name: '💾 커밋 하기 (Commit)', value: 'commit' },
+        { name: '🌿 브랜치 관리 (Checkout)', value: 'branch' },
+        { name: '🚀 푸시 (Push)', value: 'push' },
+        { name: '⬇️  풀 (Pull)', value: 'pull' },
+        { name: '📜 로그 (Log)', value: 'log' },
+        new inquirer.Separator(),
+        // [New] .gitignore 생성 기능 추가
+        { name: '🙈 .gitignore 자동 생성 (Ignore)', value: 'ignore' },
+        { name: '🔙 종료', value: 'quit' }
+      ]
+    }
+  ]);
+
+  if (action === 'quit') {
+    console.log(chalk.gray('Git Manager Closed.'));
+    return;
   }
-
-  const { input } = await inquirer.prompt([{
-    type: 'input',
-    name: 'input',
-    message: `${chalk.blue(`git(${status.current})`)} >`,
-    prefix: ''
-  }]);
-
-  const [cmd, ...args] = input.trim().split(' ');
-  const param = args.join(' ');
 
   try {
-    switch (cmd) {
-      case '/add':
-        if (!param) {
-          console.log(chalk.red('⚠️ 파일명 또는 all을 입력하세요.'));
-        } else {
-          await git.add(param === 'all' ? '.' : param);
-          console.log(chalk.green('✅ Staged.'));
-        }
-        break;
-
-      case '/commit':
-        if (status.staged.length === 0) {
-          console.log(chalk.yellow('⚠️ 스테이징된 파일이 없습니다. /add 먼저 하세요.'));
-        } else {
-          const { msg } = await inquirer.prompt([{ type: 'input', name: 'msg', message: 'Commit Message:' }]);
-          if (msg) {
-            await git.commit(msg);
-            console.log(chalk.green('✨ Committed.'));
-          }
-        }
-        break;
-
-      case '/push':
-        const targetBranch = param || status.current;
-        const spinner = ora(`Pushing to origin/${targetBranch}...`).start();
-        await git.push('origin', targetBranch);
-        spinner.succeed(chalk.green('🚀 Pushed successfully.'));
-        break;
-
-      case '/log':
-        const logs = await git.log({ maxCount: 5 });
-        console.log(chalk.yellow('\n📜 Recent Commits:'));
-        logs.all.forEach(l => console.log(` • ${chalk.cyan(l.hash.substring(0,7))} ${l.message}`));
-        console.log('');
-        break;
-
-      case '/quit':
-      case '/exit':
-      case 'q':
-        console.log(chalk.gray('Git Manager Closed.'));
-        return;
-
-      default:
-        console.log(chalk.gray('ℹ️  Commands: /add <file|all>, /commit, /push, /log, /quit'));
-    }
-  } catch (error) {
-    console.log(chalk.bgRed(' ERROR '), error.message);
+    if (action === 'add') await handleAdd(cleanFiles); // 필터링된 파일만 넘김
+    else if (action === 'commit') await handleCommit(status);
+    else if (action === 'branch') await handleBranch(currentBranch);
+    else if (action === 'push') await handlePush(currentBranch);
+    else if (action === 'pull') await handlePull(currentBranch);
+    else if (action === 'log') await handleLog();
+    else if (action === 'ignore') await handleIgnore(); // 핸들러 연결
+  } catch (e) {
+    console.log(chalk.bgRed(' ERROR '), e.message);
+    await pause();
   }
 
-  await gitLoop();
+  await gitMenuLoop();
+};
+
+// 📦 1. Add (필터링 적용됨)
+const handleAdd = async (files) => {
+  if (files.length === 0) {
+    console.log(chalk.gray('변경사항이 없습니다. (node_modules 제외됨)'));
+    await pause();
+    return;
+  }
+
+  const choices = files.map(f => ({
+    name: `${getFileIcon(f.index === '?' ? '?' : f.working_dir)} ${f.path}`,
+    value: f.path,
+    checked: false
+  }));
+
+  const { selectedFiles } = await inquirer.prompt([
+    {
+      type: 'checkbox',
+      name: 'selectedFiles',
+      message: '스테이징할 파일을 선택하세요:',
+      choices: choices,
+      pageSize: 15
+    }
+  ]);
+
+  if (selectedFiles.length > 0) {
+    const spinner = ora('Staging...').start();
+    await git.add(selectedFiles);
+    spinner.succeed(chalk.green(`${selectedFiles.length}개 파일 Staged 완료!`));
+  }
+  await pause();
+};
+
+// 🙈 [New] .gitignore 생성기
+const handleIgnore = async () => {
+  if (fs.existsSync('.gitignore')) {
+    console.log(chalk.yellow('⚠️  이미 .gitignore 파일이 존재합니다.'));
+    const { overwrite } = await inquirer.prompt([{ type: 'confirm', name: 'overwrite', message: '덮어쓰시겠습니까?', default: false }]);
+    if (!overwrite) return;
+  }
+
+  // Node.js 필수 제외 목록
+  const ignoreContent = `# Logs
+logs
+*.log
+npm-debug.log*
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Directory for instrumented libs generated by jscoverage/JSCover
+lib-cov
+
+# Coverage directory used by tools like istanbul
+coverage
+
+# nyc test coverage
+.nyc_output
+
+# Grunt intermediate storage (http://gruntjs.com/creating-plugins#storing-task-files)
+.grunt
+
+# Bower dependency directory (https://bower.io/)
+bower_components
+
+# node-waf configuration
+.lock-wscript
+
+# Compiled binary addons (https://nodejs.org/api/addons.html)
+build/Release
+
+# Dependency directories
+node_modules/
+jspm_packages/
+
+# TypeScript v1 declaration files
+typings/
+
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
+
+# Optional REPL history
+.node_repl_history
+
+# Output of 'npm pack'
+*.tgz
+
+# Yarn Integrity file
+.yarn-integrity
+
+# dotenv environment variables file
+.env
+.env.test
+
+# mac os
+.DS_Store
+`;
+
+  fs.writeFileSync('.gitignore', ignoreContent);
+  console.log(chalk.green('✅ .gitignore 파일이 생성되었습니다!'));
+  console.log(chalk.gray('(이제 node_modules가 Git 상태창에 뜨지 않습니다.)'));
+  await pause();
+};
+
+// ... (나머지 Commit, Branch, Push, Pull, Log, Pause 함수는 기존과 동일) ...
+// 코드 길이 절약을 위해 아래 함수들은 기존 코드를 유지하거나 다시 붙여넣어 주세요.
+// 만약 전체 코드가 필요하시면 말씀해주세요! (문맥상 위 handleIgnore와 handleAdd 수정이 핵심입니다)
+
+const handleCommit = async (status) => {
+  if (status.staged.length === 0) {
+    console.log(chalk.yellow('⚠️  Staged된 파일이 없습니다.'));
+    await pause();
+    return;
+  }
+  const { msg } = await inquirer.prompt([{ type: 'input', name: 'msg', message: '메시지:' }]);
+  if (msg.trim()) { await git.commit(msg); console.log(chalk.green('✨ 커밋 완료')); }
+  await pause();
+};
+
+const handleBranch = async (current) => {
+  const branches = await git.branchLocal();
+  const list = branches.all.filter(b => b !== current);
+  const { target } = await inquirer.prompt([{
+    type: 'list', name: 'target', message: '브랜치 선택:',
+    choices: [...list.map(b => ({ name: `🌿 ${b}`, value: b })), new inquirer.Separator(), { name: '✨ 새 브랜치', value: 'new' }, { name: '🔙 취소', value: 'back' }]
+  }]);
+  if (target === 'back') return;
+  if (target === 'new') {
+    const { newName } = await inquirer.prompt([{ type: 'input', name: 'newName', message: '새 이름:' }]);
+    if (newName) { await git.checkoutLocalBranch(newName); console.log(chalk.green(`✨ 이동: ${newName}`)); }
+  } else {
+    await git.checkout(target); console.log(chalk.green(`🌿 이동: ${target}`));
+  }
+  await pause();
+};
+
+const handlePush = async (branch) => {
+  const spinner = ora('Pushing...').start();
+  try { await git.push('origin', branch); spinner.succeed('🚀 완료'); } catch(e) { spinner.fail('실패'); console.log(e.message); }
+  await pause();
+};
+
+const handlePull = async (branch) => {
+  const spinner = ora('Pulling...').start();
+  try { await git.pull('origin', branch); spinner.succeed('⬇️ 완료'); } catch(e) { spinner.fail('실패'); }
+  await pause();
+};
+
+const handleLog = async () => {
+  const log = await git.log({ maxCount: 5 });
+  console.log(chalk.yellow('\n📜 Log'));
+  log.all.forEach(l => console.log(`${chalk.cyan(l.hash.slice(0,7))} ${l.message}`));
+  await pause();
+};
+
+const pause = async () => {
+  await inquirer.prompt([{ type: 'input', name: 'enter', message: '엔터를 누르면 메뉴로 돌아갑니다...', prefix: '' }]);
 };
