@@ -1,0 +1,10 @@
+{
+  "todos": [
+    {
+      "task": "깃에 devdeck 푸쉬하깅",
+      "done": false
+    }
+  ],
+  "weather": null,
+  "lastFetch": 0
+}
