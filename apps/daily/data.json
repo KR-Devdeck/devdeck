@@ -3,8 +3,12 @@
     {
       "task": "깃에 devdeck 푸쉬하깅",
       "done": false
+    },
+    {
+      "task": "잠자기 ",
+      "done": false
     }
   ],
-  "weather": null,
-  "lastFetch": 0
+  "weather": "구름 조금 ⛅ (-4°C)",
+  "lastFetch": 1770042471838
 }

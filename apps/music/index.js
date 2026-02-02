@@ -1,156 +1,115 @@
-import yts from 'yt-search';
 import inquirer from 'inquirer';
 import chalk from 'chalk';
-import ora from 'ora';
-import { spawn } from 'child_process';
+import figlet from 'figlet';
+import { MusicPlayer } from './core/player.js';
+import { searchMenu } from './core/search.js';
 
-// 💿 추천 테마 프리셋 복구
-const TOPICS = [
-  { name: '👨‍💻 코딩할 때 듣기 좋은 Lofi', query: 'lofi hip hop radio - beats to relax/study to' },
-  { name: '☕️ 스타벅스 감성 Jazz', query: 'starbucks jazz cafe music' },
-  { name: '🔥 쇠질할 때 헬스장 플레이리스트', query: 'workout motivation music gym' },
-  { name: '🌧 비 오는 날 듣기 좋은 팝송', query: 'rainy day cozy pop songs' },
-  { name: '🇰🇷 최신 아이돌 노동요', query: 'kpop workout playlist' }
-];
+const player = new MusicPlayer();
 
 export const runMusic = async () => {
-  console.clear();
-  console.log(chalk.magenta.bold('╔══════════════════════════════════════════╗'));
-  console.log(chalk.magenta.bold('║       🎵 DevDeck Music Player v2.0       ║'));
-  console.log(chalk.magenta.bold('╚══════════════════════════════════════════╝'));
-  await mainMenu();
+  while (true) {
+    console.clear();
+    printHeader(); // 상단 로고 및 상태바 출력
+
+    const { action } = await inquirer.prompt([{
+      type: 'list',
+      name: 'action',
+      message: 'Command:',
+      prefix: '💿', // 기본 '?' 대신 디스크 아이콘
+      pageSize: 10,
+      loop: false,
+      choices: [
+        { name: chalk.bold('➕  노래 검색 및 추가 (Add Song)'), value: 'add' },
+        { name: chalk.bold('▶️   재생 시작 (Start Player)'), value: 'play' },
+        new inquirer.Separator(chalk.dim('──────────────────────────────')),
+        { name: `🔁  반복 모드 변경 [ 현재: ${chalk.cyan(getLoopName(player.loopMode))} ]`, value: 'loop' },
+        { name: `📜  대기열 관리 [ ${chalk.yellow(player.queue.length)}곡 대기 중 ]`, value: 'queue' },
+        new inquirer.Separator(chalk.dim('──────────────────────────────')),
+        { name: chalk.red('🚪  종료 (Exit)'), value: 'quit' }
+      ]
+    }]);
+
+    if (action === 'quit') return;
+
+    if (action === 'add') {
+      const song = await searchMenu();
+      if (song) {
+        player.add(song);
+        console.log(chalk.green('\n ✅ 대기열에 추가되었습니다!'));
+        await pause(600);
+      }
+    } 
+    else if (action === 'play') {
+      if (player.queue.length === 0) {
+        console.log(chalk.red('\n ⚠️  대기열이 비었습니다. 노래를 먼저 추가해주세요.'));
+        await pause(1000);
+      } else {
+        await player.playQueue(); // 플레이어 화면으로 전환
+      }
+    }
+    else if (action === 'loop') {
+      await handleLoopMenu();
+    }
+    else if (action === 'queue') {
+      await manageQueue();
+    }
+  }
 };
 
-// 🏠 메인 메뉴 (검색 방식 선택)
-const mainMenu = async () => {
-  const { mode } = await inquirer.prompt([
-    {
-      type: 'list',
-      name: 'mode',
-      message: '무엇을 듣고 싶으신가요?',
-      choices: [
-        { name: '🔍 노래 제목으로 검색', value: 'song' },
-        { name: '🎤 가수 이름으로 검색', value: 'artist' },
-        { name: '💿 추천 테마 (Categories)', value: 'topic' },
-        new inquirer.Separator(),
-        { name: '🔙 종료', value: 'quit' }
-      ]
-    }
-  ]);
+// 🎨 상단 헤더 디자인
+const printHeader = () => {
+  // 로고
+  console.log(chalk.cyan(figlet.textSync('MUSIC CLI', { font: 'Small' })));
+  
+  // 상태바 박스
+  const qLen = `${player.queue.length} Songs`.padEnd(10);
+  const loopSt = getLoopName(player.loopMode).padEnd(10);
 
-  if (mode === 'quit') {
-    console.log(chalk.gray('음악 플레이어를 종료합니다.'));
+  console.log(chalk.white('╔══════════════════════════════════════════════╗'));
+  console.log(`║ 📊 Queue : ${chalk.yellow(qLen)}  |  🔁 Loop : ${chalk.cyan(loopSt)} ║`);
+  console.log(chalk.white('╚══════════════════════════════════════════════╝'));
+  console.log('');
+};
+
+const handleLoopMenu = async () => {
+  const { mode } = await inquirer.prompt([{
+    type: 'list', name: 'mode', message: 'Loop Mode:',
+    choices: [
+      { name: '➡️  반복 없음 (None)', value: 'NONE' },
+      { name: '🔁  전체 반복 (All)', value: 'ALL' },
+      { name: '🔂  한 곡 반복 (One)', value: 'ONE' },
+      new inquirer.Separator(),
+      { name: '🔙  취소', value: 'back' }
+    ]
+  }]);
+  if (mode !== 'back') player.setLoop(mode);
+};
+
+const manageQueue = async () => {
+  if (player.queue.length === 0) {
+    console.log(chalk.red('대기열이 비었습니다.'));
+    await pause(800);
     return;
   }
+  console.clear();
+  printHeader(); // 대기열 화면에서도 헤더 유지
 
-  if (mode === 'song') await handleSearch('song');
-  else if (mode === 'artist') await handleSearch('artist');
-  else if (mode === 'topic') await handleTopic();
-};
+  const choices = player.queue.map((s, i) => ({
+    name: `${chalk.dim(i + 1 + '.')} ${s.title}`, value: i
+  }));
+  choices.push(new inquirer.Separator());
+  choices.push({ name: '🔙 뒤로 가기', value: 'back' });
 
-// 🔍 검색 로직 (노래 vs 가수)
-const handleSearch = async (type) => {
-  const label = type === 'song' ? '노래 제목' : '가수 이름';
-  
-  const { keyword } = await inquirer.prompt([
-    {
-      type: 'input',
-      name: 'keyword',
-      message: `${label}을 입력하세요:`,
-      validate: (input) => input ? true : '검색어를 입력해야 합니다.'
-    }
-  ]);
+  const { targetIdx } = await inquirer.prompt([{
+    type: 'list', name: 'targetIdx', message: '삭제할 노래 선택:', choices, pageSize: 12, loop: false
+  }]);
 
-  // 가수로 검색할 때는 뒤에 'playlist'나 'best songs'를 붙여서 정확도 높임
-  const searchQuery = type === 'artist' ? `${keyword} best songs playlist` : keyword;
-  
-  await searchAndPlay(searchQuery);
-};
-
-// 💿 테마 선택 로직
-const handleTopic = async () => {
-  const { selectedQuery } = await inquirer.prompt([
-    {
-      type: 'list',
-      name: 'selectedQuery',
-      message: '어떤 분위기의 노래를 틀까요?',
-      choices: [
-        ...TOPICS.map(t => ({ name: t.name, value: t.query })),
-        new inquirer.Separator(),
-        { name: '🔙 뒤로 가기', value: 'back' }
-      ]
-    }
-  ]);
-
-  if (selectedQuery === 'back') return mainMenu();
-  await searchAndPlay(selectedQuery);
-};
-
-// ⚙️ 공통: 검색 및 재생 실행
-const searchAndPlay = async (query) => {
-  const spinner = ora(`'${query}' 찾는 중...`).start();
-  
-  try {
-    const r = await yts(query);
-    // 비디오만 필터링 (라이브 스트림 포함)
-    const videos = r.videos.slice(0, 10);
-    spinner.stop();
-
-    if (videos.length === 0) {
-      console.log(chalk.red('❌ 검색 결과가 없습니다.'));
-      return mainMenu();
-    }
-
-    // 결과 목록 보여주기
-    const choices = videos.map(v => ({
-      name: `${chalk.bold(v.title)} - ${chalk.dim(v.author.name)} (${v.timestamp})`,
-      value: v.videoId
-    }));
-    choices.push(new inquirer.Separator());
-    choices.push({ name: '🔙 메뉴로 돌아가기', value: 'back' });
-
-    const { videoId } = await inquirer.prompt([
-      {
-        type: 'list',
-        name: 'videoId',
-        message: '재생할 항목을 선택하세요:',
-        choices: choices,
-        loop: false,
-        pageSize: 12
-      }
-    ]);
-
-    if (videoId === 'back') return mainMenu();
-
-    // 재생 시작
-    const selected = videos.find(v => v.videoId === videoId);
-    await playWithMpv(videoId, selected);
-
-  } catch (e) {
-    spinner.fail('검색 중 오류 발생');
-    console.error(e);
-    await mainMenu();
+  if (targetIdx !== 'back') {
+    player.remove(targetIdx);
+    console.log(chalk.green('🗑️  삭제되었습니다.'));
+    await pause(500);
   }
 };
 
-// 🔊 MPV 재생기
-const playWithMpv = async (videoId, meta) => {
-  console.clear();
-  console.log(chalk.bgMagenta.white.bold(` 🔊 Now Playing `));
-  console.log(chalk.yellow(`Title : ${meta.title}`));
-  console.log(chalk.yellow(`Artist: ${meta.author.name}`));
-  console.log(chalk.cyan(`Time  : ${meta.timestamp}`));
-  console.log(chalk.dim('\n[조작법] Space: 일시정지 | ←/→: 탐색 | 9/0: 볼륨 | q: 끄기\n'));
-
-  return new Promise((resolve) => {
-    const player = spawn('mpv', [
-      '--no-video',
-      `https://www.youtube.com/watch?v=${videoId}`
-    ], { stdio: 'inherit' });
-
-    player.on('close', () => {
-      console.log(chalk.gray('\n재생이 종료되었습니다.'));
-      resolve();
-    });
-  }).then(() => mainMenu()); // 재생 끝나면 다시 메인 메뉴로
-};
+const getLoopName = (mode) => (mode === 'ONE' ? 'One' : mode === 'ALL' ? 'All' : 'Off');
+const pause = (ms) => new Promise(r => setTimeout(r, ms));

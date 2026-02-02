@@ -4,12 +4,44 @@ import axios from 'axios';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import weather from 'weather-js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_FILE = path.join(__dirname, 'data.json');
-const BOX_WIDTH = 52; // 박스 내부 너비 고정
+const BOX_WIDTH = 52;
 
-// 🛡️ 백업용 명언 (API 실패시)
+let isFetchingWeather = false;
+
+// 🇰🇷 [업데이트] 모든 키를 소문자로 통일 (대소문자 무시 매칭용)
+const WEATHER_DICT = {
+  'sunny': '맑음 ☀️',
+  'clear': '맑음 ☀️',
+  'mostly sunny': '대체로 맑음 🌤️',
+  'Mostly clear': '대체로 맑음 🌤️',
+  'partly sunny': '구름 조금 ⛅',
+  'partly cloudy': '구름 조금 ⛅',
+  'mostly cloudy': '대체로 흐림 🌥️',
+  'cloudy': '흐림 ☁️',
+  'overcast': '매우 흐림 ☁️',
+  'rain': '비 ☔',
+  'showers': '소나기 ☔',
+  'light rain': '가벼운 비 ☔',
+  'rain showers': '비/소나기 ☔',
+  'heavy rain': '폭우 ☔',
+  'snow': '눈 ❄️',
+  'light snow': '가벼운 눈 🌨️',
+  'blowing snow': '날리는 눈 🌨️',
+  'rain and snow': '진눈깨비 🌨️',
+  'snow showers': '눈발 날림 🌨️',
+  'ice/snow': '얼음/눈 🧊',
+  'thunderstorm': '뇌우 ⚡',
+  'haze': '안개 🌫️',
+  'fog': '짙은 안개 🌫️',
+  'mist': '옅은 안개 🌫️',
+  'smoke': '미세먼지/연기 😷',
+  'dust': '먼지 😷'
+};
+
 const FALLBACK_QUOTES = [
   { content: "코드는 거짓말을 하지 않는다. 주석은 가끔 한다.", author: "Unknown" },
   { content: "내일의 나를 위해 오늘의 코드를 깨끗하게 하라.", author: "Clean Code" },
@@ -18,25 +50,21 @@ const FALLBACK_QUOTES = [
   { content: "배포 없는 금요일, 버그 없는 주말.", author: "DevDeck" }
 ];
 
-// 📏 [핵심] 글자 너비 계산 함수 (한글=2칸, 영어=1칸)
 const getTextWidth = (str) => {
   let width = 0;
   for (const char of str) {
-    // 한글 및 2바이트 문자 범위 체크
     if (char.match(/[^\u0000-\u00ff]/)) width += 2;
     else width += 1;
   }
   return width;
 };
 
-// 📦 박스 라인 출력 헬퍼
 const printBoxLine = (text) => {
   const textLen = getTextWidth(text);
   const paddingLen = Math.max(0, BOX_WIDTH - textLen);
   console.log(`┃ ${text}${' '.repeat(paddingLen)} ┃`);
 };
 
-// 💾 데이터 로드/저장
 const loadData = () => {
   if (!fs.existsSync(DATA_FILE)) return { todos: [], weather: null, lastFetch: 0 };
   try { return JSON.parse(fs.readFileSync(DATA_FILE, 'utf-8')); } 
@@ -45,39 +73,65 @@ const loadData = () => {
 
 const saveData = (data) => fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
 
-// 🌤️ 날씨 가져오기 (한국어 & 캐싱)
-const getWeatherWithCache = async (currentData) => {
+const fetchWeatherFromLib = () => {
+  return new Promise((resolve, reject) => {
+    weather.find({ search: 'Seoul, South Korea', degreeType: 'C' }, (err, result) => {
+      if (err) reject(err);
+      if (!result || result.length === 0) reject(new Error('No Data'));
+      
+      const current = result[0].current;
+      const engText = current.skytext; // 예: "Mostly Clear"
+      
+      // [수정] 소문자로 변환해서 찾음 (대소문자 문제 해결)
+      const lowerKey = engText.toLowerCase().trim();
+      const korText = WEATHER_DICT[lowerKey] || engText;
+      
+      resolve(`${korText} (${current.temperature}°C)`);
+    });
+  });
+};
+
+const getWeatherNonBlocking = (currentData) => {
   const ONE_HOUR = 60 * 60 * 1000;
   const now = Date.now();
 
   if (currentData.weather && (now - currentData.lastFetch < ONE_HOUR)) {
-    return { data: currentData.weather, fromCache: true };
+    return { data: currentData.weather, icon: '⚡' };
   }
 
+  if (!isFetchingWeather) {
+    updateWeatherBackground();
+  }
+
+  return { 
+    data: currentData.weather || '날씨 불러오는 중...', 
+    icon: '⏳' 
+  };
+};
+
+const updateWeatherBackground = async () => {
+  isFetchingWeather = true;
   try {
-    // [수정] lang=ko 파라미터 추가
-    const res = await axios.get('https://wttr.in/Seoul?format="%C+%t+(%w)"&lang=ko', { timeout: 1500 });
-    const weatherText = res.data.replace(/"/g, '').trim();
-    currentData.weather = weatherText;
-    currentData.lastFetch = now;
-    saveData(currentData);
-    return { data: weatherText, fromCache: false };
+    const weatherText = await fetchWeatherFromLib();
+    const newData = loadData();
+    newData.weather = weatherText;
+    newData.lastFetch = Date.now();
+    saveData(newData);
   } catch (e) {
-    return { data: currentData.weather || '날씨 정보 없음', fromCache: true };
+  } finally {
+    isFetchingWeather = false;
   }
 };
 
-// 💬 명언 가져오기
 const getDevQuote = async () => {
   try {
-    const res = await axios.get('https://api.quotable.io/random?tags=technology', { timeout: 1000 });
+    const res = await axios.get('https://api.quotable.io/random?tags=technology', { timeout: 800 });
     return { content: res.data.content, author: res.data.author };
   } catch (e) {
     return FALLBACK_QUOTES[Math.floor(Math.random() * FALLBACK_QUOTES.length)];
   }
 };
 
-// 🚀 메인 실행
 export const runDaily = async () => {
   console.clear();
   
@@ -86,49 +140,40 @@ export const runDaily = async () => {
   const dateStr = now.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' });
   const timeStr = now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
 
-  const [weatherInfo, quote] = await Promise.all([
-    getWeatherWithCache(data),
-    getDevQuote()
-  ]);
+  const weatherInfo = getWeatherNonBlocking(data);
+  const quote = await getDevQuote();
   
-  const weatherIcon = weatherInfo.fromCache ? '⚡' : '🔄';
-
-  // 📐 박스 그리기
   const topBorder = '┏' + '━'.repeat(BOX_WIDTH + 2) + '┓';
   const midBorder = '┣' + '━'.repeat(BOX_WIDTH + 2) + '┫';
   const botBorder = '┗' + '━'.repeat(BOX_WIDTH + 2) + '┛';
 
   console.log(chalk.cyan(topBorder));
+  printBoxLine(`${chalk.bold(dateStr)} ${timeStr}`);
   
-  // 1. 날짜 줄
-  const dateLine = `${chalk.bold(dateStr)} ${timeStr}`;
-  printBoxLine(dateLine);
+  const rawText = `${weatherInfo.data} ${weatherInfo.icon}`;
+  const wWidth = getTextWidth(rawText);
+  const wPadding = Math.max(0, BOX_WIDTH - wWidth);
   
-  // 2. 날씨 줄
-  // 색상 코드가 들어가면 길이 계산이 꼬이므로, 출력할 땐 색 입히고 길이 계산은 평문으로 함
-  // 하지만 간단하게 처리하기 위해 날씨 텍스트만 출력
-  const weatherLine = `${weatherInfo.data} ${weatherIcon}`;
-  printBoxLine(weatherLine);
-  
+  const coloredWeather = weatherInfo.icon === '⚡' 
+    ? `${chalk.yellow(weatherInfo.data)} ${weatherInfo.icon}` 
+    : `${chalk.gray(weatherInfo.data)} ${weatherInfo.icon}`;
+
+  console.log(`┃ ${coloredWeather}${' '.repeat(wPadding)} ┃`);
+
   console.log(midBorder);
 
-  // 3. 명언 줄 (길면 자름)
   let qText = quote.content;
   if (qText.length > 45) qText = qText.substring(0, 42) + '...';
   
-  // 명언은 이탤릭체라 특수문자 취급 주의, 여기선 심플하게
   const quoteLine = `❝ ${qText} ❞`;
   const authorLine = `- ${quote.author}`;
 
-  // 수동 패딩 계산해서 출력 (printBoxLine 활용)
-  // 색상 코드(chalk)가 들어가면 getTextWidth가 꼬이므로, 공백을 먼저 계산하고 나중에 색을 입힘
   const qWidth = getTextWidth(quoteLine);
   const qPadding = Math.max(0, BOX_WIDTH - qWidth);
   console.log(`┃ ${chalk.italic.white(quoteLine)}${' '.repeat(qPadding)} ┃`);
 
   const aWidth = getTextWidth(authorLine);
   const aPadding = Math.max(0, BOX_WIDTH - aWidth);
-  // 저자는 오른쪽 정렬 느낌을 위해 앞쪽에 공백을 줌 (여기선 그냥 왼쪽 정렬 통일하되 박스만 맞춤)
   console.log(`┃ ${chalk.dim(authorLine)}${' '.repeat(aPadding)} ┃`);
 
   console.log(chalk.cyan(botBorder));
@@ -154,27 +199,39 @@ const todoLoop = async (data) => {
       { name: '✅ 완료 (Toggle)', value: 'toggle' },
       { name: '🗑  삭제 (Delete)', value: 'delete' },
       new inquirer.Separator(),
-      { name: '🧹 청소 (Clear Done)', value: 'clear' },
+      { name: '🔄 새로고침 (Refresh)', value: 'refresh' },
       { name: '🔙 종료 (Exit)', value: 'quit' }
     ]
   }]);
 
-  if (action === 'quit') {
-    console.log(chalk.gray('Bye! 👋'));
-    return;
-  }
+  if (action === 'quit') return;
 
-  if (action === 'add') {
-    const { task } = await inquirer.prompt([{ type: 'input', name: 'task', message: '할 일:' }]);
-    if (task.trim()) { data.todos.push({ task, done: false }); saveData(data); }
+  if (action === 'refresh') {
+    // Refresh loop
+  } else if (action === 'add') {
+    // [수정] 취소 기능 추가
+    const { task } = await inquirer.prompt([{ 
+      type: 'input', 
+      name: 'task', 
+      message: '할 일 (취소하려면 그냥 엔터):' 
+    }]);
+    
+    // 내용이 없으면(엔터만 치면) 저장하지 않음
+    if (task.trim()) { 
+      data.todos.push({ task, done: false }); 
+      saveData(data); 
+    } else {
+      console.log(chalk.gray('취소되었습니다.'));
+      // 잠시 메시지 보여주기 위해 0.5초 대기
+      await new Promise(r => setTimeout(r, 500));
+    }
+    
   } else if (action === 'toggle' && data.todos.length) {
     const { idx } = await inquirer.prompt([{ type: 'list', name: 'idx', message: '선택:', choices: data.todos.map((t, i) => ({ name: t.task, value: i })) }]);
     data.todos[idx].done = !data.todos[idx].done; saveData(data);
   } else if (action === 'delete' && data.todos.length) {
     const { idx } = await inquirer.prompt([{ type: 'list', name: 'idx', message: '삭제:', choices: data.todos.map((t, i) => ({ name: t.task, value: i })) }]);
     data.todos.splice(idx, 1); saveData(data);
-  } else if (action === 'clear') {
-    data.todos = data.todos.filter(t => !t.done); saveData(data);
   }
 
   console.clear();
