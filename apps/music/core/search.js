@@ -1,120 +1,116 @@
-import yts from 'yt-search';
 import inquirer from 'inquirer';
+import { spawn } from 'child_process';
 import chalk from 'chalk';
 import ora from 'ora';
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const HISTORY_FILE = path.join(__dirname, '../history.json');
-
-// 💿 테마 리스트
-const TOPICS = [
-  { name: '👨‍💻 코딩 집중 (Lofi)', query: 'lofi hip hop radio' },
-  { name: '☕ 카페 (Jazz)', query: 'starbucks jazz cafe' },
-  { name: '💪 헬스 (Phonk/Rock)', query: 'workout motivation music' },
-  { name: '🌧 비 오는 날 (Pop)', query: 'rainy day cozy pop' },
-  { name: '🚗 드라이브 (City Pop)', query: 'city pop playlist' },
-  { name: '🇰🇷 K-Pop', query: 'kpop latest hits' },
-  { name: '🎸 밴드 (Rock)', query: 'rock band playlist' }
-];
-
-// 💾 히스토리 관리
-const getHistory = () => {
-  if (!fs.existsSync(HISTORY_FILE)) return [];
-  try { return JSON.parse(fs.readFileSync(HISTORY_FILE, 'utf-8')); } catch { return []; }
-};
-
-const addToHistory = (keyword) => {
-  let history = getHistory();
-  history = history.filter(h => h !== keyword);
-  history.unshift(keyword);
-  if (history.length > 10) history = history.slice(0, 10);
-  fs.writeFileSync(HISTORY_FILE, JSON.stringify(history, null, 2));
-};
 
 export const searchMenu = async () => {
-  const history = getHistory();
-  
-  const choices = [
-    { name: '🔍 제목 검색', value: 'song' },
-    { name: '🎤 가수 검색', value: 'artist' },
-    { name: '💿 추천 테마', value: 'topic' }
-  ];
-
-  if (history.length > 0) {
-    choices.push(new inquirer.Separator('--- 🕒 최근 검색어 ---'));
-    history.forEach(h => {
-      choices.push({ name: `🕒 ${h}`, value: `history:${h}` });
-    });
-  }
-
-  choices.push(new inquirer.Separator('-----------------'));
-  choices.push({ name: '🔙 취소', value: 'back' });
-
-  const { type } = await inquirer.prompt([{
-    type: 'list', name: 'type', message: '검색 방식:',
-    choices: choices,
-    pageSize: 15,
-    loop: false // [수정] 무한 루프 끔 (맨 아래서 멈춤)
+  // 1. 검색 모드 선택
+  const { searchType } = await inquirer.prompt([{
+    type: 'list',
+    name: 'searchType',
+    message: '검색 옵션 선택:',
+    choices: [
+      { name: '🎵 노래 제목 검색', value: 'title' },
+      { name: '🎤 가수 이름 검색', value: 'artist' },
+      new inquirer.Separator(),
+      { name: '🔙 취소', value: 'back' }
+    ]
   }]);
 
-  if (type === 'back') return null;
+  if (searchType === 'back') return null;
 
-  let query = '';
+  // 2. 검색어 입력
+  const { query } = await inquirer.prompt([{
+    type: 'input',
+    name: 'query',
+    message: '검색어:',
+    validate: (input) => input.trim() ? true : '검색어를 입력해주세요.'
+  }]);
 
-  if (type.startsWith('history:')) {
-    query = type.split('history:')[1];
-    addToHistory(query);
-  } 
-  else if (type === 'topic') {
-    const { topicQuery } = await inquirer.prompt([{
-      type: 'list', name: 'topicQuery', message: '테마 선택:',
-      choices: TOPICS.map(t => ({ name: t.name, value: t.query })),
-      loop: false // [수정] 여기도 루프 끔
-    }]);
-    query = topicQuery;
-  } 
-  else {
-    const { keyword } = await inquirer.prompt([{ type: 'input', name: 'keyword', message: '검색어:' }]);
-    if (!keyword.trim()) return null;
-    
-    const realQuery = type === 'artist' ? `${keyword} best songs` : keyword;
-    addToHistory(keyword);
-    query = realQuery;
-  }
+  const finalQuery = searchType === 'artist' ? `${query} official audio` : query;
+  
+  const spinner = ora('YouTube 검색 중...').start();
 
-  const spinner = ora(`'${query}' 찾는 중...`).start();
   try {
-    const r = await yts(query);
+    const items = await runYtDlpSearch(finalQuery);
     spinner.stop();
-    const videos = r.videos.slice(0, 10);
 
-    if (!videos.length) {
-      console.log(chalk.red('❌ 결과 없음'));
+    if (items.length === 0) {
+      console.log(chalk.red('\n❌ 검색 결과가 없습니다.'));
+      await pause(1000);
       return null;
     }
 
-    const { videoId } = await inquirer.prompt([{
-      type: 'list', name: 'videoId', message: '추가할 노래 선택:',
-      choices: [
-        ...videos.map(v => ({
-          name: `${chalk.bold(v.title)} - ${chalk.dim(v.author.name)} (${v.timestamp})`,
-          value: v.videoId
-        })),
-        new inquirer.Separator(),
-        { name: '🔙 취소', value: 'back' }
-      ],
-      pageSize: 12,
-      loop: false // [핵심 수정] 노래 리스트 무한 루프 끔!
+    // 3. [핵심 변경] 결과 선택 (Checkbox)
+    // 이제 스페이스바로 여러 개 선택 가능합니다!
+    const { selectedVideos } = await inquirer.prompt([{
+      type: 'checkbox',  // list -> checkbox 변경
+      name: 'selectedVideos',
+      message: '추가할 노래를 선택하세요 (Space:선택, Enter:확정):',
+      pageSize: 15,
+      choices: items.map(v => ({
+        name: `${chalk.bold(v.title)} ${v.duration ? chalk.dim(`(${formatTime(v.duration)})`) : ''} - ${chalk.gray(v.uploader || 'Unknown')}`,
+        value: {
+          title: v.title,
+          videoId: v.id,
+          duration: v.duration || 0,
+          author: { name: v.uploader || 'Unknown' }
+        }
+      }))
     }]);
 
-    if (videoId === 'back') return null;
-    return videos.find(v => v.videoId === videoId);
+    // 아무것도 선택 안 하고 엔터 치면 취소로 간주
+    if (selectedVideos.length === 0) return null;
+    
+    // 배열(여러 곡)을 반환
+    return selectedVideos;
 
   } catch (e) {
     spinner.fail('검색 실패');
+    console.log(chalk.red('\n🚫 에러:'), e.message);
+    await pause(2000);
     return null;
   }
 };
+
+const runYtDlpSearch = (query) => {
+  return new Promise((resolve, reject) => {
+    const args = [
+      `ytsearch10:${query}`,
+      '--dump-json',
+      '--flat-playlist',
+      '--no-warnings',
+      '--default-search', 'ytsearch'
+    ];
+
+    const child = spawn('yt-dlp', args);
+    let output = '';
+
+    child.stdout.on('data', (data) => output += data.toString());
+
+    child.on('close', () => {
+      const results = output
+        .trim()
+        .split('\n')
+        .map(line => { try { return JSON.parse(line); } catch (e) { return null; } })
+        .filter(item => item && item.id)
+        .filter(item => {
+           const dur = item.duration;
+           if (dur && (dur < 10 || dur > 900)) return false; 
+           return true;
+        });
+      resolve(results);
+    });
+
+    child.on('error', (err) => reject(err));
+  });
+};
+
+const formatTime = (seconds) => {
+  if (!seconds) return '';
+  const min = Math.floor(seconds / 60);
+  const sec = Math.floor(seconds % 60);
+  return `${min}:${sec.toString().padStart(2, '0')}`;
+};
+
+const pause = (ms) => new Promise(r => setTimeout(r, ms));
