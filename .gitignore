@@ -4,7 +4,7 @@ logs
 npm-debug.log*
 
 # daily data 
-/daily/data.json
+apps/daily/data.json
 
 # Runtime data
 pids
