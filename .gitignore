@@ -6,6 +6,9 @@ npm-debug.log*
 # daily data 
 apps/daily/data.json
 
+# music data
+apps/music/history.json
+
 # Runtime data
 pids
 *.pid
