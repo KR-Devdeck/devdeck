@@ -3,6 +3,9 @@ logs
 *.log
 npm-debug.log*
 
+# daily data 
+./daily/data.json
+
 # Runtime data
 pids
 *.pid
