@@ -27,9 +27,9 @@ export const searchMenu = async () => {
     validate: (input) => input.trim() ? true : '검색어를 입력해주세요.'
   }]);
 
-  const finalQuery = searchType === 'artist' ? `${query} official audio` : query;
+  const finalQuery = searchType === 'artist' ? `${query} song audio` : query;
   
-  const spinner = ora('YouTube 검색 중...').start();
+  const spinner = ora(chalk.cyan('YouTube 검색 중...')).start();
 
   try {
     const items = await runYtDlpSearch(finalQuery);
@@ -41,33 +41,34 @@ export const searchMenu = async () => {
       return null;
     }
 
-    // 3. [핵심 변경] 결과 선택 (Checkbox)
-    // 이제 스페이스바로 여러 개 선택 가능합니다!
+    // 3. 결과 선택 (Checkbox)
+    // 💡 UI 최적화 적용됨
     const { selectedVideos } = await inquirer.prompt([{
-      type: 'checkbox',  // list -> checkbox 변경
+      type: 'checkbox',
       name: 'selectedVideos',
       message: '추가할 노래를 선택하세요 (Space:선택, Enter:확정):',
-      pageSize: 15,
-      choices: items.map(v => ({
-        name: `${chalk.bold(v.title)} ${v.duration ? chalk.dim(`(${formatTime(v.duration)})`) : ''} - ${chalk.gray(v.uploader || 'Unknown')}`,
-        value: {
-          title: v.title,
-          videoId: v.id,
-          duration: v.duration || 0,
-          author: { name: v.uploader || 'Unknown' }
-        }
-      }))
+      pageSize: 7,    // [수정] 15 -> 7 (화면 갱신 부하를 줄여서 깜빡임 방지)
+      loop: false,    // [수정] 무한 스크롤 기능 끄기 (끝에 도달하면 멈춤)
+      choices: items.map(v => {
+        const timeStr = v.duration ? `(${formatTime(v.duration)})` : '';
+        return {
+          name: `${chalk.bold(v.title)} ${chalk.dim(timeStr)} - ${chalk.gray(v.uploader || 'Unknown')}`,
+          value: {
+            title: v.title,
+            videoId: v.id,
+            duration: v.duration || 0,
+            author: { name: v.uploader || 'Unknown' }
+          }
+        };
+      })
     }]);
 
-    // 아무것도 선택 안 하고 엔터 치면 취소로 간주
-    if (selectedVideos.length === 0) return null;
-    
-    // 배열(여러 곡)을 반환
+    if (!selectedVideos || selectedVideos.length === 0) return null;
     return selectedVideos;
 
   } catch (e) {
-    spinner.fail('검색 실패');
-    console.log(chalk.red('\n🚫 에러:'), e.message);
+    spinner.stop();
+    console.log(chalk.red('\n🚫 검색 실패:'), e.message);
     await pause(2000);
     return null;
   }
@@ -84,21 +85,25 @@ const runYtDlpSearch = (query) => {
     ];
 
     const child = spawn('yt-dlp', args);
-    let output = '';
-
-    child.stdout.on('data', (data) => output += data.toString());
-
-    child.on('close', () => {
+    const chunks = [];
+    child.stdout.on('data', (chunk) => chunks.push(chunk));
+    
+    child.on('close', (code) => {
+      const output = Buffer.concat(chunks).toString('utf8');
+      
       const results = output
         .trim()
         .split('\n')
-        .map(line => { try { return JSON.parse(line); } catch (e) { return null; } })
+        .map(line => {
+          try { return JSON.parse(line); } catch (e) { return null; }
+        })
         .filter(item => item && item.id)
         .filter(item => {
-           const dur = item.duration;
-           if (dur && (dur < 10 || dur > 900)) return false; 
-           return true;
+           const title = (item.title || '').toLowerCase();
+           if (title.includes('trailer') || title.includes('teaser')) return false;
+           return true; 
         });
+
       resolve(results);
     });
 
