@@ -8,7 +8,7 @@ import path from 'path';
 export class MusicPlayer {
   constructor() {
     this.queue = [];
-    this.loopMode = 'NONE';
+    this.loopMode = 'NONE'; // NONE, ALL, ONE
     this.isPlaying = false;
     this.currentSec = 0;
     this.totalSec = 0;
@@ -19,13 +19,16 @@ export class MusicPlayer {
   }
 
   add(song) { this.queue.push(song); }
+
   remove(index) {
     if (index < 0 || index >= this.queue.length) return false;
     this.queue.splice(index, 1);
     return true;
   }
+
   setLoop(mode) { this.loopMode = mode; }
 
+  // 🔄 메인 재생 로직 (수정됨)
   async playQueue() {
     if (this.queue.length === 0) return;
 
@@ -37,28 +40,42 @@ export class MusicPlayer {
     let index = 0;
     while (index < this.queue.length) {
       const song = this.queue[index];
+      
+      // 노래 재생 (끝날 때까지 대기)
       const action = await this.playOneSong(song, index + 1, this.queue.length);
 
       if (action === 'QUIT') break;
 
-      // 루프 로직
+      // 🛑 [수정된 부분] continue를 쓰지 않고 if-else로 깔끔하게 처리
       if (this.loopMode === 'ONE') {
-        if (action === 'SKIP' || action === 'NEXT') { 
-          // 'ONE' 모드에서 'NEXT'는 사실상 같은 곡 반복이므로 
-          // index를 건드리지 않고 continue만 하면 됩니다.
-          if (action === 'SKIP') index++;
-          else continue; 
+        if (action === 'SKIP') {
+          // 한 곡 반복이어도 사용자가 '스킵'을 누르면 다음 곡으로
+          index++;
+        } else {
+          // 자연스럽게 끝났다면(NEXT), index를 올리지 않음 (제자리 반복)
+          // 아무것도 안 하면 index가 그대로 유지되므로 다시 그 노래가 재생됨
         }
       } else {
+        // 일반 모드(NONE)거나 전체 반복(ALL)이면 무조건 다음 곡
         index++;
       }
 
+      // 대기열 끝에 도달했을 때 처리
       if (index >= this.queue.length) {
-        if (this.loopMode === 'ALL') index = 0;
-        else break;
+        if (this.loopMode === 'ALL') {
+          index = 0; // 전체 반복이면 처음으로
+        } else if (this.loopMode === 'ONE' && action !== 'SKIP') {
+           // (예외 처리) 마지막 곡에서 한 곡 반복 중이면 인덱스 유지
+           // (위에서 index++를 안 했으니 자동으로 유지되지만 안전장치)
+           index = this.queue.length - 1; 
+        } else {
+          break; // 반복 없으면 종료
+        }
       }
       
-      await new Promise(r => setTimeout(r, 500)); // 다음 곡 준비 여유 시간
+      // ⚡ 안전 장치: 프로세스 정리 및 과부하 방지를 위해 0.5초 대기
+      // 아까는 continue 때문에 이 부분이 무시되어서 오류가 났던 것입니다.
+      await new Promise(r => setTimeout(r, 500));
     }
 
     if (process.stdin.isTTY) process.stdin.setRawMode(false);
@@ -71,6 +88,7 @@ export class MusicPlayer {
       this.totalSec = song.duration || 0;
       this.isPlaying = true;
       
+      // 매번 고유한 파이프 이름 생성
       const pipeName = `devdeck-mpv-${Date.now()}`;
       this.ipcPath = process.platform === 'win32' 
         ? `\\\\.\\pipe\\${pipeName}` 
@@ -87,7 +105,7 @@ export class MusicPlayer {
         return;
       }
 
-      // ✅ 핵심: --idle=no 로 설정하여 재생이 끝나면 프로세스가 죽게 만듭니다.
+      // --idle=no: 재생 끝나면 자동 종료
       this.mpvProcess = spawn('mpv', [
         '--no-video',
         '--volume=100',
@@ -121,13 +139,12 @@ export class MusicPlayer {
 
       process.stdin.on('keypress', keyHandler);
 
-      // ✅ 재생 종료 감지
       this.mpvProcess.on('close', () => {
         this.cleanup(keyHandler);
         resolve('NEXT');
       });
 
-      // IPC를 통해 mpv 내부에서 재생이 끝났는지 한 번 더 체크 (윈도우용 보강)
+      // 윈도우용 이중 안전장치 (EOF 감지)
       if (this.ipcClient) {
         this.ipcClient.on('data', (data) => {
           const msg = data.toString();
@@ -136,7 +153,6 @@ export class MusicPlayer {
             resolve('NEXT');
           }
         });
-        // mpv에 이벤트 감지 활성화 요청
         this.sendCommand('{ "command": ["observe_property", 1, "eof-reached"] }');
       }
     });
@@ -192,7 +208,6 @@ export class MusicPlayer {
         this.currentSec++;
         if (this.totalSec > 0 && this.currentSec >= this.totalSec) {
           this.currentSec = this.totalSec;
-          // 여기서 강제로 다음 곡을 부르지 않고 mpv의 종료 이벤트를 기다립니다.
         }
       }
       this.renderUI(song, current, total);
