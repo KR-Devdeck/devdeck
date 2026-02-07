@@ -16,6 +16,7 @@ export class MusicPlayer {
     this.mpvProcess = null;
     this.ipcClient = null;
     this.ipcPath = '';
+    this.volume = 100;
   }
 
   add(song) { this.queue.push(song); }
@@ -108,7 +109,7 @@ export class MusicPlayer {
       // --idle=no: 재생 끝나면 자동 종료
       this.mpvProcess = spawn('mpv', [
         '--no-video',
-        '--volume=100',
+        `--volume=${this.volume}`,
         `--input-ipc-server=${this.ipcPath}`,
         '--idle=no', 
         streamUrl
@@ -133,6 +134,12 @@ export class MusicPlayer {
           this.renderUI(song, currentIdx, totalIdx);
         } else if (key.name === 'left') {
           this.seek(-10);
+          this.renderUI(song, currentIdx, totalIdx);
+        } else if (key.name === 'up') {
+          this.changeVolume(5);
+          this.renderUI(song, currentIdx, totalIdx);
+        } else if (key.name === 'down') {
+          this.changeVolume(-5);
           this.renderUI(song, currentIdx, totalIdx);
         }
       };
@@ -228,15 +235,21 @@ export class MusicPlayer {
     this.sendCommand(`{ "command": ["seek", ${seconds}, "relative"] }`);
   }
 
+  changeVolume(delta) {
+    this.volume = Math.max(0, Math.min(100, this.volume + delta));
+    this.sendCommand(`{ "command": ["set_property", "volume", ${this.volume}] }`);
+  }
+
   renderUI(song, current, total) {
     console.clear();
     const loopIcon = this.loopMode === 'ONE' ? '🔂 One' : this.loopMode === 'ALL' ? '🔁 All' : '➡️ Off';
     const statusIcon = this.isPlaying ? '▶️' : '⏸️';
+    const volIcon = this.volume === 0 ? '🔇' : this.volume < 50 ? '🔉' : '🔊';
     
     console.log(`\n ${chalk.cyan.bold('DevDeck Player')}  ${chalk.dim('|')}  Track ${chalk.yellow(current)}/${chalk.dim(total)}  ${chalk.dim('|')}  ${chalk.blue(loopIcon)}`);
     console.log(chalk.gray(' ───────────────────────────────────────────'));
     console.log(`\n ${chalk.white.bold(this.truncate(song.title, 40))}`);
-    console.log(` ${chalk.gray(this.truncate(song.author?.name || 'Unknown', 40))}`);
+    console.log(` ${chalk.gray(this.truncate(song.author?.name || 'Unknown', 40))}   ${chalk.dim(volIcon + ' ' + this.volume + '%')}`);
     console.log('');
 
     const barWidth = 25;
@@ -253,7 +266,8 @@ export class MusicPlayer {
     console.log(`   ${statusIcon}  ${chalk.yellow(this.formatTime(this.currentSec))}  ${bar}  ${chalk.dim(this.formatTime(this.totalSec))}`);
     console.log('');
     console.log(chalk.gray(' ───────────────────────────────────────────'));
-    console.log(chalk.cyan(`  [Space] Pause    [←/→] Seek    [s] Skip    [q] Quit`));
+    console.log(chalk.cyan(`  [Space] Pause    [←/→] Seek    [↑/↓] Volume`));
+    console.log(chalk.cyan(`  [s] Skip         [q] Quit`));
   }
 
   truncate(str, n) { return str?.length > n ? str.substr(0, n - 1) + '…' : str; }
