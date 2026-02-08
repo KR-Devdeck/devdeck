@@ -100,7 +100,9 @@ export class MusicPlayer {
 
       let streamUrl = '';
       try {
-        streamUrl = execSync(`yt-dlp -f bestaudio -g "https://www.youtube.com/watch?v=${song.videoId}"`, { encoding: 'utf8' }).trim();
+        // --no-warnings: 불필요한 경고 숨김
+        // --extractor-args: 유튜브 시그니처 오류 방지를 위해 클라이언트 순서 지정
+        streamUrl = execSync(`yt-dlp --no-warnings -f bestaudio -g --extractor-args "youtube:player-client=ios,web" "https://www.youtube.com/watch?v=${song.videoId}"`, { encoding: 'utf8' }).trim();
       } catch (e) {
         setTimeout(() => resolve('SKIP'), 1000);
         return;
