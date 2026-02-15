@@ -2,7 +2,7 @@
   "name": "@beargame/devdeck",
   "version": "1.1.2",
   "description": "DevDeck: All-in-one Developer Toolchain",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "author": "beargame123",
   "type": "module",
   "engines": {
@@ -40,7 +40,7 @@
     "LICENSE"
   ],
   "bin": {
-    "deck": "./bin/cli.js"
+    "deck": "bin/cli.js"
   },
   "dependencies": {
     "axios": "^1.6.0",

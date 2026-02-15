@@ -3,9 +3,9 @@
 > **"마우스에 손을 올리는 시간조차 아깝다."**
 > 개발자를 위한 올인원 터미널 생산성 도구 (일정, 음악, Git 관리)
 
-![Version](https://img.shields.io/badge/version-1.1.0-blue.svg)
+![Version](https://img.shields.io/badge/version-1.1.2-blue.svg)
 ![Node](https://img.shields.io/badge/node-%3E%3D18-green.svg)
-![License](https://img.shields.io/badge/license-MIT-orange.svg)
+![License](https://img.shields.io/badge/license-Non--Commercial-red.svg)
 
 **DevDeck**은 개발 작업 흐름을 끊지 않고 터미널 안에서 모든 것을 해결할 수 있도록 돕는 CLI 도구입니다.
 복잡한 설정 없이 `deck` 명령어 하나로 하루 일정 관리, 노동요 재생, Git 관리를 시작하세요.
@@ -139,6 +139,11 @@ This tool relies on `yt-dlp` and `mpv`. The user is responsible for complying wi
 이 프로젝트는 개발 공부 및 개인적인 사용을 목적으로 만들어졌습니다.
 이 프로그램은 사용자 컴퓨터에 음원 파일을 저장하지 않으며, 오직 실시간 스트리밍 방식으로만 작동합니다.
 저작권자의 권리를 존중합니다. 본 프로그램은 `yt-dlp`와 `mpv`를 활용한 CLI 클라이언트일 뿐이며, 이를 통해 발생하는 문제에 대한 책임은 사용자 본인에게 있습니다.
+
+## 📜 License
+
+This project is distributed under the **DevDeck Non-Commercial License**.
+See `LICENSE` for details.
 
 ---
 
