@@ -3,7 +3,7 @@
 > **"마우스에 손을 올리는 시간조차 아깝다."**
 > 개발자를 위한 올인원 터미널 생산성 도구 (일정, 음악, Git 관리)
 
-![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)
+![Version](https://img.shields.io/badge/version-1.1.0-blue.svg)
 ![Node](https://img.shields.io/badge/node-%3E%3D18-green.svg)
 ![License](https://img.shields.io/badge/license-MIT-orange.svg)
 
@@ -35,46 +35,44 @@
 
 ## 🛠 Prerequisites (필수 준비물)
 
-본 도구는 **Node.js** 환경에서 동작하며, 오디오 스트리밍을 위해 **mpv**와 **yt-dlp**가 반드시 필요합니다.
+본 도구는 **Node.js** 환경에서 동작합니다.
+오디오 스트리밍에 필요한 **mpv**, **yt-dlp**는 설치 스크립트에서 자동 설치를 시도합니다.
 
 ### 1. Node.js 설치
 
 [Node.js 공식 홈페이지](https://nodejs.org/)에서 **v18 이상 (LTS 권장)** 버전을 설치해주세요.
 
-### 2. 미디어 엔진 설치 (필수)
-
-터미널에서 운영체제에 맞는 패키지 매니저로 설치해주세요.
-
-| OS          | 패키지 매니저        | 명령어                                                 |
-| :---------- | :------------- | :-------------------------------------------------- |
-| **macOS**   | Homebrew       | `brew install mpv yt-dlp`                           |
-| **Windows** | Scoop (**추천**) | `scoop bucket add extras; scoop install mpv yt-dlp` |
-| **Windows** | Chocolatey     | `choco install mpv yt-dlp`                          |
-
-> **💡 Windows 사용자 필독**
-> `scoop` 명령어가 없다면 PowerShell에서 아래 명령어로 먼저 설치하세요.
->
-> ```powershell
-> Set-ExecutionPolicy RemoteSigned -Scope CurrentUser; irm get.scoop.sh | iex
-> ```
-
 ---
 
 ## 🚀 Installation (설치하기)
 
-준비물이 완료되었다면, 터미널에서 아래 과정을 진행하세요.
+### A) 원커맨드 글로벌 설치 (추천)
+
+```bash
+npm install -g @beargame/devdeck
+```
+
+글로벌 설치 시 `postinstall`에서 `mpv` / `yt-dlp` 자동 설치를 시도합니다.
+
+> 자동 설치가 실패하면 스크립트가 운영체제별 수동 명령어를 안내합니다.
+
+### B) 소스 코드로 설치
+
+터미널에서 아래 2단계를 실행하세요.
 
 ```bash
 # 1. 소스 코드 다운로드
 git clone https://github.com/KR-Devdeck/devdeck.git
 cd devdeck
 
-# 2. 의존성 설치
-npm install
-
-# 3. 전역 명령어 등록 (어디서든 'deck'으로 실행 가능)
-npm link
+# 2. 원커맨드 설치
+# - npm 의존성 설치
+# - mpv / yt-dlp 자동 설치 시도
+# - deck 명령어 전역 링크
+npm run setup
 ```
+
+> 소스 설치도 자동 설치가 실패하면 스크립트가 운영체제별 수동 명령어를 안내합니다.
 
 ---
 
@@ -113,8 +111,10 @@ npm link
 
 **Q. `deck` 명령어를 찾을 수 없다고 나옵니다.**
 
-* 설치 단계에서 `npm link`가 정상적으로 완료되었는지 확인하세요.
-* 권한 오류 발생 시 `sudo npm link`를 시도해야 할 수 있습니다.
+* 전역 설치가 정상적으로 완료됐는지 확인하세요.
+  (`npm install -g @beargame/devdeck`)
+* 설치 후 새 터미널을 열어 PATH를 다시 로드하세요.
+* macOS/Linux에서 권한 오류가 나면 npm 전역 경로 권한 설정을 먼저 정리해야 할 수 있습니다.
 
 **Q. 노래가 꺼지지 않고 계속 나와요 (Windows).**
 

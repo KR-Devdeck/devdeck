@@ -63,7 +63,7 @@ export const runGit = async () => {
             const stagedCheck = execSync('git diff --cached --name-only', { encoding: 'utf8' });
             if (!stagedCheck.trim()) {
               console.log(chalk.yellow('\n  ⚠️ 커밋할 파일이 담기지(Staged) 않았습니다.'));
-              console.log(chalk.gray('  먼저 "📂 디렉토리별 탐색" 메뉴에서 파일을 선택(Enter)해주세요.'));
+              console.log(chalk.gray('  먼저 "📂 디렉토리별 탐색" 메뉴에서 파일을 Space로 체크 후 Enter로 선택해주세요.'));
               await pause(2000);
               break;
             }
