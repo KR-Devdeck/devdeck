@@ -67,6 +67,7 @@ export const searchMenu = async () => {
     type: 'list',
     name: 'searchType',
     message: '검색 옵션을 선택하세요:',
+    loop: false,
     choices: menuChoices
   }]);
 
@@ -81,6 +82,7 @@ export const searchMenu = async () => {
       type: 'list',
       name: 'selectedHistory',
       message: '최근 검색한 기록:',
+      loop: false,
       choices: [...history, new inquirer.Separator(), { name: '🔙 뒤로', value: 'back' }]
     }]);
     if (selectedHistory === 'back') return searchMenu();

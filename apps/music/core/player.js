@@ -1,4 +1,4 @@
-import { spawn, execSync } from 'child_process';
+import { spawn, execSync, execFileSync } from 'child_process';
 import chalk from 'chalk';
 import readline from 'readline';
 import net from 'net';
@@ -17,6 +17,9 @@ export class MusicPlayer {
     this.ipcClient = null;
     this.ipcPath = '';
     this.volume = 100;
+    this.playbackPromise = null;
+    this.stopRequested = false;
+    this.currentTitle = '';
   }
 
   add(song) { this.queue.push(song); }
@@ -29,21 +32,48 @@ export class MusicPlayer {
 
   setLoop(mode) { this.loopMode = mode; }
 
+  isBackgroundRunning() {
+    return !!this.playbackPromise;
+  }
+
+  startBackgroundPlayback() {
+    if (this.queue.length === 0) return false;
+    if (this.playbackPromise) return true;
+
+    this.stopRequested = false;
+    this.playbackPromise = this.playQueue({ interactive: false }).finally(() => {
+      this.playbackPromise = null;
+      this.stopRequested = false;
+      this.currentTitle = '';
+    });
+    return true;
+  }
+
+  stopBackgroundPlayback() {
+    this.stopRequested = true;
+    this.cleanup();
+  }
+
   // 🔄 메인 재생 로직 (수정됨)
-  async playQueue() {
+  async playQueue(options = {}) {
+    const interactive = options.interactive !== false;
     if (this.queue.length === 0) return;
 
-    if (process.stdin.isTTY) process.stdin.setRawMode(true);
-    process.stdin.resume();
-    process.stdin.setEncoding('utf8');
-    readline.emitKeypressEvents(process.stdin);
+    if (interactive) {
+      if (process.stdin.isTTY) process.stdin.setRawMode(true);
+      process.stdin.resume();
+      process.stdin.setEncoding('utf8');
+      readline.emitKeypressEvents(process.stdin);
+    }
 
     let index = 0;
     while (index < this.queue.length) {
+      if (this.stopRequested) break;
       const song = this.queue[index];
+      this.currentTitle = song.title || '';
       
       // 노래 재생 (끝날 때까지 대기)
-      const action = await this.playOneSong(song, index + 1, this.queue.length);
+      const action = await this.playOneSong(song, index + 1, this.queue.length, { interactive });
 
       if (action === 'QUIT') break;
 
@@ -79,11 +109,14 @@ export class MusicPlayer {
       await new Promise(r => setTimeout(r, 500));
     }
 
-    if (process.stdin.isTTY) process.stdin.setRawMode(false);
-    process.stdin.pause();
+    if (interactive) {
+      if (process.stdin.isTTY) process.stdin.setRawMode(false);
+      process.stdin.pause();
+    }
   }
 
-  playOneSong(song, currentIdx, totalIdx) {
+  playOneSong(song, currentIdx, totalIdx, options = {}) {
+    const interactive = options.interactive !== false;
     return new Promise(async (resolve) => {
       this.currentSec = 0;
       this.totalSec = song.duration || 0;
@@ -95,14 +128,14 @@ export class MusicPlayer {
         ? `\\\\.\\pipe\\${pipeName}` 
         : path.join(os.tmpdir(), `${pipeName}.sock`);
 
-      console.clear();
-      console.log(chalk.cyan(`\n  🎵 '${song.title}' 로딩 중...`));
+      if (interactive) {
+        console.clear();
+        console.log(chalk.cyan(`\n  🎵 '${song.title}' 로딩 중...`));
+      }
 
       let streamUrl = '';
       try {
-        // --no-warnings: 불필요한 경고 숨김
-        // --extractor-args: 유튜브 시그니처 오류 방지를 위해 클라이언트 순서 지정
-        streamUrl = execSync(`yt-dlp --no-warnings -f bestaudio -g --extractor-args "youtube:player-client=ios,web" "https://www.youtube.com/watch?v=${song.videoId}"`, { encoding: 'utf8' }).trim();
+        streamUrl = this.resolveStreamUrl(song.videoId);
       } catch (e) {
         setTimeout(() => resolve('SKIP'), 1000);
         return;
@@ -118,35 +151,38 @@ export class MusicPlayer {
       ], { stdio: 'ignore' });
 
       this.ipcClient = await this.connectToMpv();
-      this.startTimer(song, currentIdx, totalIdx);
+      if (interactive) this.startTimer(song, currentIdx, totalIdx);
 
-      const keyHandler = (str, key) => {
-        if (!key) return;
-        if ((key.ctrl && key.name === 'c') || key.name === 'q') {
-          this.cleanup(keyHandler);
-          resolve('QUIT');
-        } else if (key.name === 's') {
-          this.cleanup(keyHandler);
-          resolve('SKIP');
-        } else if (key.name === 'space') {
-          this.togglePause();
-          this.renderUI(song, currentIdx, totalIdx);
-        } else if (key.name === 'right') {
-          this.seek(10);
-          this.renderUI(song, currentIdx, totalIdx);
-        } else if (key.name === 'left') {
-          this.seek(-10);
-          this.renderUI(song, currentIdx, totalIdx);
-        } else if (key.name === 'up') {
-          this.changeVolume(5);
-          this.renderUI(song, currentIdx, totalIdx);
-        } else if (key.name === 'down') {
-          this.changeVolume(-5);
-          this.renderUI(song, currentIdx, totalIdx);
-        }
-      };
+      let keyHandler = null;
+      if (interactive) {
+        keyHandler = (str, key) => {
+          if (!key) return;
+          if ((key.ctrl && key.name === 'c') || key.name === 'q') {
+            this.cleanup(keyHandler);
+            resolve('QUIT');
+          } else if (key.name === 's') {
+            this.cleanup(keyHandler);
+            resolve('SKIP');
+          } else if (key.name === 'space') {
+            this.togglePause();
+            this.renderUI(song, currentIdx, totalIdx);
+          } else if (key.name === 'right') {
+            this.seek(10);
+            this.renderUI(song, currentIdx, totalIdx);
+          } else if (key.name === 'left') {
+            this.seek(-10);
+            this.renderUI(song, currentIdx, totalIdx);
+          } else if (key.name === 'up') {
+            this.changeVolume(5);
+            this.renderUI(song, currentIdx, totalIdx);
+          } else if (key.name === 'down') {
+            this.changeVolume(-5);
+            this.renderUI(song, currentIdx, totalIdx);
+          }
+        };
 
-      process.stdin.on('keypress', keyHandler);
+        process.stdin.on('keypress', keyHandler);
+      }
 
       this.mpvProcess.on('close', () => {
         this.cleanup(keyHandler);
@@ -191,6 +227,7 @@ export class MusicPlayer {
 
   cleanup(handler) {
     this.stopTimer();
+    this.isPlaying = false;
     if (handler) process.stdin.removeListener('keypress', handler);
 
     if (this.ipcClient) {
@@ -240,6 +277,31 @@ export class MusicPlayer {
   changeVolume(delta) {
     this.volume = Math.max(0, Math.min(100, this.volume + delta));
     this.sendCommand(`{ "command": ["set_property", "volume", ${this.volume}] }`);
+  }
+
+  resolveStreamUrl(videoId) {
+    const targetUrl = `https://www.youtube.com/watch?v=${videoId}`;
+    const attempts = [
+      ['--no-warnings', '-f', 'bestaudio/best', '-g', '--extractor-args', 'youtube:player-client=ios,web,android', targetUrl],
+      ['--no-warnings', '-f', 'best', '-g', '--extractor-args', 'youtube:player-client=web,android', targetUrl],
+      ['--no-warnings', '-g', '--extractor-args', 'youtube:player-client=web', targetUrl],
+      ['--no-warnings', '-g', targetUrl]
+    ];
+
+    for (const args of attempts) {
+      try {
+        const output = execFileSync('yt-dlp', args, {
+          encoding: 'utf8',
+          stdio: ['ignore', 'pipe', 'ignore']
+        }).trim();
+        const url = output.split('\n').find((line) => line.startsWith('http'));
+        if (url) return url;
+      } catch (e) {
+        // try next fallback strategy
+      }
+    }
+
+    throw new Error('Unable to resolve stream URL');
   }
 
   renderUI(song, current, total) {

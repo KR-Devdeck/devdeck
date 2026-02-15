@@ -34,6 +34,7 @@ export const managePlaylists = async (player) => {
       type: 'list',
       name: 'action',
       message: '작업을 선택하세요:',
+      loop: false,
       choices: [
         { name: '📥 가져오기 (Import)', value: 'import_menu' },
         { name: '💾 내보내기/저장 (Save)', value: 'save' },
@@ -56,6 +57,7 @@ export const managePlaylists = async (player) => {
             type: 'list',
             name: 'importType',
             message: '방법을 선택하세요:',
+            loop: false,
             choices: [
               { name: '📂 내 저장소에서 선택 (Local File)', value: 'local' },
               { name: '🔍 유튜브 검색으로 가져오기 (Search Playlist)', value: 'search' },
@@ -78,6 +80,7 @@ export const managePlaylists = async (player) => {
               type: 'list',
               name: 'selectedList',
               message: '불러올 목록 선택:',
+              loop: false,
               choices: [...listNames, new inquirer.Separator(), { name: '🔙 취소', value: 'cancel' }]
             }]);
             if (selectedList === 'cancel') continue;
@@ -303,6 +306,7 @@ export const managePlaylists = async (player) => {
           type: 'list',
           name: 'listToDelete',
           message: '삭제할 목록 선택:',
+          loop: false,
           choices: [...listNames, new inquirer.Separator(), { name: '🔙 취소', value: 'cancel' }]
         }]);
         if (listToDelete === 'cancel') continue;
@@ -325,6 +329,7 @@ const addToQueue = async (player, songs) => {
       type: 'list',
       name: 'loadMode',
       message: '대기열 처리 방식:',
+      loop: false,
       choices: [
         { name: '🗑️  기존 목록 비우고 덮어쓰기 (Replace)', value: 'replace' },
         { name: '➕  뒤에 추가하기 (Append)', value: 'append' },
