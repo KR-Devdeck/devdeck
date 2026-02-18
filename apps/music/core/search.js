@@ -5,6 +5,7 @@ import ora from 'ora';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { getConfig } from '../../core/config.js';
 
 // 📂 경로 설정: 프로젝트 루트의 data/history.json 사용
 const __filename = fileURLToPath(import.meta.url);
@@ -12,6 +13,31 @@ const __dirname = path.dirname(__filename);
 // 현재 위치(apps/music/core)에서 세 번 위로 올라가면 프로젝트 루트 -> data 폴더
 const DATA_DIR = path.join(__dirname, '../../../data'); 
 const HISTORY_FILE = path.join(DATA_DIR, 'history.json');
+const T = (key, vars = {}) => {
+  const lang = getConfig().language || 'ko';
+  const m = {
+    save_fail: { ko: '데이터 저장 실패:', en: 'Failed to save data:', ja: 'データ保存失敗:', 'zh-CN': '数据保存失败:' },
+    opt_select: { ko: '검색 옵션을 선택하세요:', en: 'Select search option:', ja: '検索オプションを選択:', 'zh-CN': '请选择搜索选项:' },
+    by_title: { ko: '🎵 노래 제목 검색', en: '🎵 Search by title', ja: '🎵 曲名で検索', 'zh-CN': '🎵 按歌曲名搜索' },
+    by_artist: { ko: '🎤 가수 이름 검색', en: '🎤 Search by artist', ja: '🎤 アーティスト名で検索', 'zh-CN': '🎤 按歌手搜索' },
+    recent: { ko: '🕒 최근 검색어 ({n})', en: '🕒 Recent searches ({n})', ja: '🕒 最近の検索 ({n})', 'zh-CN': '🕒 最近搜索 ({n})' },
+    cancel: { ko: '🔙 취소', en: '🔙 Cancel', ja: '🔙 キャンセル', 'zh-CN': '🔙 取消' },
+    recent_title: { ko: '최근 검색한 기록:', en: 'Recent search history:', ja: '最近の検索履歴:', 'zh-CN': '最近搜索记录:' },
+    back: { ko: '🔙 뒤로', en: '🔙 Back', ja: '🔙 戻る', 'zh-CN': '🔙 返回' },
+    ask_artist: { ko: '가수 이름을 입력하세요:', en: 'Enter artist name:', ja: 'アーティスト名を入力:', 'zh-CN': '请输入歌手名称:' },
+    ask_title: { ko: '노래 제목을 입력하세요:', en: 'Enter song title:', ja: '曲名を入力:', 'zh-CN': '请输入歌曲名:' },
+    need_query: { ko: '검색어를 입력해주세요.', en: 'Please enter a query.', ja: '検索語を入力してください。', 'zh-CN': '请输入搜索词。' },
+    searching: { ko: "'{q}' 검색 중...", en: "Searching '{q}'...", ja: "'{q}' を検索中...", 'zh-CN': "正在搜索 '{q}'..." },
+    no_result: { ko: '\n❌ 검색 결과가 없습니다.', en: '\n❌ No search results.', ja: '\n❌ 検索結果がありません。', 'zh-CN': '\n❌ 没有搜索结果。' },
+    search_fail: { ko: '\n🚫 검색 실패:', en: '\n🚫 Search failed:', ja: '\n🚫 検索失敗:', 'zh-CN': '\n🚫 搜索失败:' },
+    prev: { ko: '⏪  이전 페이지 (Prev)', en: '⏪  Previous page', ja: '⏪  前のページ', 'zh-CN': '⏪  上一页' },
+    next: { ko: '⏩  다음 페이지 (Next)', en: '⏩  Next page', ja: '⏩  次のページ', 'zh-CN': '⏩  下一页' },
+    unknown: { ko: 'Unknown', en: 'Unknown', ja: 'Unknown', 'zh-CN': 'Unknown' },
+    choose_song: { ko: '노래 선택 ({page}/{total}) - [Space:선택, Enter:확정]', en: 'Select songs ({page}/{total}) - [Space:select, Enter:confirm]', ja: '曲を選択 ({page}/{total}) - [Space:選択, Enter:確定]', 'zh-CN': '选择歌曲 ({page}/{total}) - [Space:选择, Enter:确认]' }
+  };
+  const raw = (m[key]?.[lang] ?? m[key]?.ko ?? key);
+  return Object.entries(vars).reduce((a,[k,v])=>a.replaceAll(`{${k}}`, String(v)), raw);
+};
 
 // 디렉토리가 없으면 생성 (에러 방지)
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -41,7 +67,7 @@ const saveSearchKeyword = (query) => {
   try {
     fs.writeFileSync(HISTORY_FILE, JSON.stringify(allData, null, 2), 'utf8');
   } catch (e) {
-    console.error(chalk.red('데이터 저장 실패:', e.message));
+    console.error(chalk.red(T('save_fail')), e.message);
   }
 };
 
@@ -51,22 +77,22 @@ export const searchMenu = async () => {
   
   // 1. 🔍 검색 방식 선택
   const menuChoices = [
-    { name: '🎵 노래 제목 검색', value: 'title' },
-    { name: '🎤 가수 이름 검색', value: 'artist' }
+    { name: T('by_title'), value: 'title' },
+    { name: T('by_artist'), value: 'artist' }
   ];
 
   if (history.length > 0) {
     menuChoices.push(new inquirer.Separator());
-    menuChoices.push({ name: `🕒 최근 검색어 (${history.length})`, value: 'history' });
+    menuChoices.push({ name: T('recent', { n: history.length }), value: 'history' });
   }
 
   menuChoices.push(new inquirer.Separator());
-  menuChoices.push({ name: '🔙 취소', value: 'back' });
+  menuChoices.push({ name: T('cancel'), value: 'back' });
 
   const { searchType } = await inquirer.prompt([{
     type: 'list',
     name: 'searchType',
-    message: '검색 옵션을 선택하세요:',
+    message: T('opt_select'),
     loop: false,
     choices: menuChoices
   }]);
@@ -81,9 +107,9 @@ export const searchMenu = async () => {
     const { selectedHistory } = await inquirer.prompt([{
       type: 'list',
       name: 'selectedHistory',
-      message: '최근 검색한 기록:',
+      message: T('recent_title'),
       loop: false,
-      choices: [...history, new inquirer.Separator(), { name: '🔙 뒤로', value: 'back' }]
+      choices: [...history, new inquirer.Separator(), { name: T('back'), value: 'back' }]
     }]);
     if (selectedHistory === 'back') return searchMenu();
     query = selectedHistory;
@@ -93,8 +119,8 @@ export const searchMenu = async () => {
     const { inputQuery } = await inquirer.prompt([{
       type: 'input',
       name: 'inputQuery',
-      message: searchType === 'artist' ? '가수 이름을 입력하세요:' : '노래 제목을 입력하세요:',
-      validate: (input) => input.trim() ? true : '검색어를 입력해주세요.'
+      message: searchType === 'artist' ? T('ask_artist') : T('ask_title'),
+      validate: (input) => input.trim() ? true : T('need_query')
     }]);
     query = inputQuery;
     finalQuery = searchType === 'artist' ? `${query} song audio` : query;
@@ -104,7 +130,7 @@ export const searchMenu = async () => {
   }
 
   // 3. 🚀 검색 실행 (50개 미리 로드)
-  const spinner = ora(chalk.cyan(`'${query}' 검색 중...`)).start();
+  const spinner = ora(chalk.cyan(T('searching', { q: query }))).start();
   let allItems = [];
   
   try {
@@ -112,14 +138,14 @@ export const searchMenu = async () => {
     spinner.stop();
 
     if (allItems.length === 0) {
-      console.log(chalk.red('\n❌ 검색 결과가 없습니다.'));
+      console.log(chalk.red(T('no_result')));
       await pause(1500);
       return null;
     }
 
   } catch (e) {
     spinner.stop();
-    console.log(chalk.red('\n🚫 검색 실패:'), e.message);
+    console.log(chalk.red(T('search_fail')), e.message);
     await pause(2000);
     return null;
   }
@@ -136,14 +162,14 @@ export const searchMenu = async () => {
     const choices = [];
     
     if (currentPage > 0) {
-      choices.push({ name: chalk.cyan('⏪  이전 페이지 (Prev)'), value: 'PREV_PAGE' });
+      choices.push({ name: chalk.cyan(T('prev')), value: 'PREV_PAGE' });
       choices.push(new inquirer.Separator());
     }
 
     currentItems.forEach(v => {
       const timeStr = v.duration ? `(${formatTime(v.duration)})` : '';
       choices.push({
-        name: `${chalk.bold(v.title)} ${chalk.dim(timeStr)} - ${chalk.gray(v.uploader || 'Unknown')}`,
+        name: `${chalk.bold(v.title)} ${chalk.dim(timeStr)} - ${chalk.gray(v.uploader || T('unknown'))}`,
         value: {
           title: v.title,
           videoId: v.id,
@@ -155,13 +181,13 @@ export const searchMenu = async () => {
 
     if (currentPage < totalPages - 1) {
       choices.push(new inquirer.Separator());
-      choices.push({ name: chalk.cyan('⏩  다음 페이지 (Next)'), value: 'NEXT_PAGE' });
+      choices.push({ name: chalk.cyan(T('next')), value: 'NEXT_PAGE' });
     }
 
     const { selectedVideos } = await inquirer.prompt([{
       type: 'checkbox',
       name: 'selectedVideos',
-      message: `노래 선택 (${currentPage + 1}/${totalPages}) - [Space:선택, Enter:확정]`,
+      message: T('choose_song', { page: currentPage + 1, total: totalPages }),
       pageSize: 12,
       loop: false,
       choices: choices

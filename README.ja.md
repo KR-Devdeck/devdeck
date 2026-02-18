@@ -1,62 +1,47 @@
-# 🎴 DevDeck (Developer's Command Center)
+<p align="center">
+  <img width="100%" alt="DevDeck hero" src="docs/media/devdeck-hero.svg" />
+</p>
 
-**Language**: [한국어](README.md) | [English](README.en.md) | [日本語](README.ja.md) | [中文](README.zh-CN.md)
+<p align="center">
+  <b>Developer's Command Center</b><br/>
+  スケジュール、音楽、Git をターミナルで一括管理するオールインワン CLI
+</p>
 
-> 既定のドキュメントは韓国語 (`README.md`) です。上のリンクから言語を選択してください。
+<p align="center">
+  <a href="README.md">한국어</a> ·
+  <a href="README.en.md">English</a> ·
+  <a href="README.ja.md">日本語</a> ·
+  <a href="README.zh-CN.md">中文</a>
+</p>
 
-> **「マウスに手を伸ばす時間さえ惜しい。」**
-> 開発者向けオールインワン・ターミナル生産性ツール（予定、音楽、Git 管理）。
-
-![Version](https://img.shields.io/badge/version-1.1.2-blue.svg)
-![Node](https://img.shields.io/badge/node-%3E%3D18-green.svg)
-![License](https://img.shields.io/badge/license-Non--Commercial-red.svg)
-
-**DevDeck** は、開発フローを止めずにターミナル内で作業を完結させる CLI ツールです。
-`deck` コマンド 1 つで、日程管理、音楽再生、Git 操作を行えます。
-
----
-
-## ✨ 主な機能
-
-### 📅 Daily Dashboard
-
-- 今日の Todo をターミナルで素早く確認・管理
-- 天気情報と開発者向け名言を表示
-
-### 🎧 Terminal Jukebox
-
-- ローカル保存なしのダイレクトストリーミング
-- `mpv` と `yt-dlp` を使った軽量再生
-- キュー、ループ、シーク、スキップ、バックグラウンド制御
-
-### 🐙 Git Manager
-
-- 複数ファイルの一括ステージ
-- 状態に応じたスマートコミット
-- `.gitignore` 生成補助
+<p align="center">
+  <img src="https://img.shields.io/badge/node-%3E%3D18-1f883d" alt="node" />
+  <img src="https://img.shields.io/badge/license-Non--Commercial-c62828" alt="license" />
+  <img src="https://img.shields.io/badge/npm-%40beargame%2Fdevdeck-CB3837" alt="npm" />
+</p>
 
 ---
 
-## 🛠 前提条件
+## Preview
 
-- Node.js 18 以上（LTS 推奨）
-- 音楽機能用に `mpv` と `yt-dlp`
+| Dashboard | Music | Git Manager |
+| :--: | :--: | :--: |
+| <img width="230" height="130" alt="Dashboard preview" src="docs/media/preview-dashboard.png" /> | <img width="230" height="130" alt="Music preview" src="docs/media/preview-music.png" /> | <img width="230" height="130" alt="Git preview" src="docs/media/preview-git.png" /> |
 
-Node.js は [nodejs.org](https://nodejs.org/) からインストールしてください。
+<p align="center">
+  <img width="680" alt="DevDeck demo" src="docs/media/devdeck-demo.gif" />
+</p>
 
 ---
 
-## 🚀 インストール
-
-### A) グローバルインストール（推奨）
+## Quick Start
 
 ```bash
 npm install -g @beargame/devdeck
+deck
 ```
 
-`postinstall` で `mpv` と `yt-dlp` の自動セットアップを試行します。
-
-### B) ソースからインストール
+ソースから実行:
 
 ```bash
 git clone https://github.com/KR-Devdeck/devdeck.git
@@ -66,13 +51,17 @@ npm run setup
 
 ---
 
-## 🎮 使い方
+## Features
 
-```bash
-deck
-```
+- Daily Dashboard: Todo、天気、開発者向け名言
+- Terminal Jukebox: `mpv` + `yt-dlp` による検索/再生/ループ/シーク
+- Git Manager: 複数ステージ、スマートコミット、`.gitignore` 補助
 
-| コマンド | 説明 |
+---
+
+## Commands
+
+| Command | Description |
 | :-- | :-- |
 | `deck` | メインダッシュボード |
 | `deck m` | 音楽プレイヤー |
@@ -80,11 +69,34 @@ deck
 
 ---
 
-## ❓ トラブルシューティング
+## Required Media Filenames
 
-- 音楽検索/再生が動かない場合: `mpv --version` と `yt-dlp --version` を確認
-- `deck` が見つからない場合: グローバル再インストール後、ターミナル再起動
-- Windows で再生が残る場合:
+以下のファイル名をそのまま使うと README にそのまま表示されます。
+
+- `docs/media/devdeck-demo.gif`
+- `docs/media/devdeck-hero.svg`
+- `docs/media/devdeck-logo.PNG`
+- `docs/media/preview-dashboard.png`
+- `docs/media/preview-music.png`
+- `docs/media/preview-git.png`
+
+---
+
+## Prerequisites
+
+- Node.js `>=18`
+- `mpv`
+- `yt-dlp`
+
+セットアップスクリプトが `mpv` と `yt-dlp` の自動インストールを試行します。
+
+---
+
+## Troubleshooting
+
+- 音楽/検索の問題: `mpv --version`, `yt-dlp --version`
+- `deck` が見つからない: グローバル再インストール後にターミナル再起動
+- Windows で再生プロセスが残る場合:
 
 ```powershell
 taskkill /F /IM mpv.exe
@@ -92,23 +104,14 @@ taskkill /F /IM mpv.exe
 
 ---
 
-## ⚠️ 免責事項
+## License
 
-本プロジェクトは教育目的および個人利用を想定しています。
-音声ファイルを端末に保存せず、ストリーミングクライアントとして動作します。
-利用規約および関連法令の遵守はユーザーの責任です。
+This project is distributed under the **DevDeck Non-Commercial License**.
 
-## 📜 ライセンス
+- Commercial use is not allowed.
+- Selling this software is not allowed.
+- Monetized distribution is not allowed.
+- Redistributed copies must include the license notice.
 
-本プロジェクトは **DevDeck Non-Commercial License** で提供されます。
-詳細は `LICENSE` を参照してください。
-
-### ライセンス要約
-
-- 商用利用は禁止
-- ソフトウェア販売は禁止
-- 有料サービスや収益化配布での利用は禁止
-- 再配布時はライセンス表記が必要
-
-これはカスタムの非商用ライセンスであり、OSI 承認オープンソースライセンスではありません。
-コントリビューション条件は `CONTRIBUTING.md` を参照してください。
+This is a custom non-commercial license and not an OSI-approved open-source license.
+See `LICENSE` and `CONTRIBUTING.md` for details.

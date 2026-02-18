@@ -1,5 +1,6 @@
 import chalk from 'chalk';
 import { isStaged } from './status.js';
+import { getConfig } from '../../core/config.js';
 
 export const createTreeChoices = (files) => {
   const tree = createFileTree(files);
@@ -93,7 +94,17 @@ const getFileDisplay = (file, fileName) => {
 };
 
 const getStatusDisplay = (status) => {
-  if (status === '??') return chalk.cyan('[NEW]');
+  if (status === '??') {
+    const lang = getConfig().language || 'ko';
+    const newLabel = lang === 'ko'
+      ? '신규'
+      : lang === 'ja'
+      ? '新規'
+      : lang === 'zh-CN'
+      ? '新增'
+      : 'NEW';
+    return chalk.cyan(`[${newLabel}]`);
+  }
   if (status.includes('D')) return chalk.gray(`[${status}]`);
   if (status[0] !== ' ' && status[1] !== ' ') return chalk.magenta(`[${status}]`);
   if (status[0] !== ' ') return chalk.green(`[${status}]`);

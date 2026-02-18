@@ -1,62 +1,47 @@
-# 🎴 DevDeck (Developer's Command Center)
+<p align="center">
+  <img width="100%" alt="DevDeck hero" src="docs/media/devdeck-hero.svg" />
+</p>
 
-**Language**: [한국어](README.md) | [English](README.en.md) | [日本語](README.ja.md) | [中文](README.zh-CN.md)
+<p align="center">
+  <b>Developer's Command Center</b><br/>
+  All-in-one terminal CLI for schedule, music, and Git workflows
+</p>
 
-> Default document: Korean (`README.md`). Select your preferred language above.
+<p align="center">
+  <a href="README.md">한국어</a> ·
+  <a href="README.en.md">English</a> ·
+  <a href="README.ja.md">日本語</a> ·
+  <a href="README.zh-CN.md">中文</a>
+</p>
 
-> **"Even moving your hand to the mouse is too much."**
-> An all-in-one terminal productivity tool for developers (schedule, music, Git).
-
-![Version](https://img.shields.io/badge/version-1.1.2-blue.svg)
-![Node](https://img.shields.io/badge/node-%3E%3D18-green.svg)
-![License](https://img.shields.io/badge/license-Non--Commercial-red.svg)
-
-**DevDeck** helps you stay inside the terminal without breaking your development flow.
-Run one command, `deck`, to manage your day, play music, and handle Git tasks.
-
----
-
-## ✨ Features
-
-### 📅 Daily Dashboard
-
-- Manage today's todos quickly from the terminal.
-- Start the day with weather info and a developer quote.
-
-### 🎧 Terminal Jukebox
-
-- Direct streaming (no local audio file storage).
-- Lightweight playback with `mpv` and search via `yt-dlp`.
-- Queue, loop, seek, skip, and background control.
-
-### 🐙 Git Manager
-
-- Multi-select file staging.
-- Smart commit flow based on current state.
-- `.gitignore` helper generation.
+<p align="center">
+  <img src="https://img.shields.io/badge/node-%3E%3D18-1f883d" alt="node" />
+  <img src="https://img.shields.io/badge/license-Non--Commercial-c62828" alt="license" />
+  <img src="https://img.shields.io/badge/npm-%40beargame%2Fdevdeck-CB3837" alt="npm" />
+</p>
 
 ---
 
-## 🛠 Prerequisites
+## Preview
 
-- Node.js 18+ (LTS recommended)
-- `mpv` and `yt-dlp` for music features
+| Dashboard | Music | Git Manager |
+| :--: | :--: | :--: |
+| <img width="230" height="130" alt="Dashboard preview" src="docs/media/preview-dashboard.png" /> | <img width="230" height="130" alt="Music preview" src="docs/media/preview-music.png" /> | <img width="230" height="130" alt="Git preview" src="docs/media/preview-git.png" /> |
 
-Install Node.js from [nodejs.org](https://nodejs.org/).
+<p align="center">
+  <img width="680" alt="DevDeck demo" src="docs/media/devdeck-demo.gif" />
+</p>
 
 ---
 
-## 🚀 Installation
-
-### A) Global install (recommended)
+## Quick Start
 
 ```bash
 npm install -g @beargame/devdeck
+deck
 ```
 
-`postinstall` attempts automatic setup for `mpv` and `yt-dlp`.
-
-### B) Install from source
+Run from source:
 
 ```bash
 git clone https://github.com/KR-Devdeck/devdeck.git
@@ -66,24 +51,51 @@ npm run setup
 
 ---
 
-## 🎮 Usage
+## Features
 
-```bash
-deck
-```
-
-| Command  | Description |
-| :-- | :-- |
-| `deck` | Main dashboard |
-| `deck m` | Music player |
-| `deck g` | Git manager |
+- Daily Dashboard: todos, weather, and dev quotes
+- Terminal Jukebox: search/play/loop/seek with `mpv` + `yt-dlp`
+- Git Manager: multi-stage, smart commit flow, `.gitignore` helper
 
 ---
 
-## ❓ Troubleshooting
+## Commands
 
-- Music/search issues: check `mpv --version` and `yt-dlp --version`.
-- `deck` not found: reinstall globally and restart terminal.
+| Command | Description |
+| :-- | :-- |
+| `deck` | Open main dashboard |
+| `deck m` | Open music player |
+| `deck g` | Open Git manager |
+
+---
+
+## Required Media Filenames
+
+Use these exact filenames for immediate rendering:
+
+- `docs/media/devdeck-demo.gif`
+- `docs/media/devdeck-hero.svg`
+- `docs/media/devdeck-logo.PNG`
+- `docs/media/preview-dashboard.png`
+- `docs/media/preview-music.png`
+- `docs/media/preview-git.png`
+
+---
+
+## Prerequisites
+
+- Node.js `>=18`
+- `mpv`
+- `yt-dlp`
+
+The setup script attempts automatic installation for `mpv` and `yt-dlp`.
+
+---
+
+## Troubleshooting
+
+- Music/search issues: `mpv --version`, `yt-dlp --version`
+- `deck` not found: reinstall globally and restart terminal
 - Windows stuck playback:
 
 ```powershell
@@ -92,23 +104,14 @@ taskkill /F /IM mpv.exe
 
 ---
 
-## ⚠️ Disclaimer
+## License
 
-This project is intended for educational and personal use.
-It does not store audio files locally and works as a direct streaming client.
-Users are responsible for complying with platform terms and applicable laws.
-
-## 📜 License
-
-This project uses the **DevDeck Non-Commercial License**.
-See `LICENSE` for the full text.
-
-### License Summary
+This project is distributed under the **DevDeck Non-Commercial License**.
 
 - Commercial use is not allowed.
 - Selling this software is not allowed.
-- Monetized distribution or paid service usage is not allowed.
+- Monetized distribution is not allowed.
 - Redistributed copies must include the license notice.
 
 This is a custom non-commercial license and not an OSI-approved open-source license.
-Contribution terms are in `CONTRIBUTING.md`.
+See `LICENSE` and `CONTRIBUTING.md` for details.

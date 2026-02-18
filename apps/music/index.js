@@ -4,41 +4,46 @@ import { MusicPlayer } from './core/player.js';
 import { searchMenu } from './core/search.js';
 import { managePlaylists } from './core/playlist.js'; // ✅ 추가됨
 import { getConfig } from '../core/config.js';
+import { getTheme } from '../core/theme.js';
+import { tr } from '../core/i18n.js';
 
 const player = new MusicPlayer();
 
 export const runMusic = async () => {
   await maybeHandleRestoredQueue(player);
 
+  const t = getTheme();
+  const lang = getConfig().language || 'ko';
+
   while (true) {
     console.clear();
-    console.log(chalk.cyan.bold('\n  🎵  DevDeck Music Player  🎵'));
-    console.log(chalk.gray('  ──────────────────────────────────'));
+    console.log(t.title(tr('music_title', lang)));
+    console.log(t.muted('  ──────────────────────────────────'));
     
     if (player.queue.length > 0) {
-      console.log(`  목록: ${chalk.yellow(player.queue.length)}곡 대기 중`);
-      console.log(`  모드: ${player.loopMode === 'ONE' ? '🔂 한곡 반복' : player.loopMode === 'ALL' ? '🔁 전체 반복' : '➡️ 반복 없음'}`);
+      console.log(tr('music_queue_count', lang, { value: t.accent(player.queue.length) }));
+      console.log(`  모드: ${player.loopMode === 'ONE' ? tr('music_mode_one', lang) : player.loopMode === 'ALL' ? tr('music_mode_all', lang) : tr('music_mode_none', lang)}`);
     } else {
-      console.log(chalk.gray('  (재생 목록이 비어있습니다)'));
+      console.log(t.muted(tr('music_empty_queue', lang)));
     }
     if (player.isBackgroundRunning()) {
-      console.log(`  상태: ${chalk.green('백그라운드 재생 중')} ${chalk.gray(player.currentTitle ? `(${player.currentTitle})` : '')}`);
+      console.log(`  상태: ${t.success(tr('music_status_bg', lang))} ${t.muted(player.currentTitle ? `(${player.currentTitle})` : '')}`);
     }
     console.log('');
 
     const choices = [
-      { name: '🔍 노래 검색 및 추가', value: 'search' },
-      { name: '▶️ 재생 시작', value: 'play' },
-      { name: '📚 보관함 관리', value: 'library' },
-      { name: '⚙️ 재생 설정', value: 'settings' },
+      { name: tr('music_menu_search', lang), value: 'search' },
+      { name: tr('music_menu_play', lang), value: 'play' },
+      { name: tr('music_menu_library', lang), value: 'library' },
+      { name: tr('music_menu_settings', lang), value: 'settings' },
       new inquirer.Separator(),
-      { name: '🔙 메인으로', value: 'exit' }
+      { name: tr('music_menu_exit', lang), value: 'exit' }
     ];
 
     const { action } = await inquirer.prompt([{
       type: 'list',
       name: 'action',
-      message: '메뉴를 선택하세요:',
+      message: tr('music_select_menu', lang),
       loop: false,
       choices
     }]);
@@ -50,7 +55,7 @@ export const runMusic = async () => {
         const selected = await searchMenu();
         if (selected && selected.length > 0) {
           selected.forEach(song => player.add(song));
-          console.log(chalk.green(`\n  ✅ ${selected.length}곡이 추가되었습니다!`));
+          console.log(chalk.green(tr('music_added_count', lang, { value: selected.length })));
           await pause(1000);
         }
         break;
@@ -61,7 +66,7 @@ export const runMusic = async () => {
 
       case 'play':
         if (player.queue.length === 0) {
-          console.log(chalk.red('\n  ❌ 재생할 노래가 없습니다.'));
+          console.log(chalk.red(tr('music_no_song', lang)));
           await pause(1000);
         } else {
           const config = getConfig();
@@ -69,31 +74,31 @@ export const runMusic = async () => {
           const { mode } = await inquirer.prompt([{
             type: 'list',
             name: 'mode',
-            message: '재생 모드:',
+            message: tr('music_play_mode', lang),
             default: defaultMode,
             loop: false,
             choices: [
-              { name: '🖥️ 전면 재생', value: 'foreground' },
-              { name: '🧩 백그라운드 재생', value: 'background' }
+              { name: tr('music_play_fg', lang), value: 'foreground' },
+              { name: tr('music_play_bg', lang), value: 'background' }
             ]
           }]);
 
           if (mode === 'foreground') {
             if (player.isBackgroundRunning()) {
-              console.log(chalk.yellow('\n  ℹ️ 백그라운드 재생 중에는 전면 재생을 시작할 수 없습니다.'));
-              console.log(chalk.gray('  먼저 설정 메뉴에서 백그라운드 재생을 중지해주세요.'));
+              console.log(chalk.yellow(tr('music_warn_fg_while_bg', lang)));
+              console.log(chalk.gray(tr('music_hint_stop_bg_first', lang)));
               await pause(1200);
             } else {
               await player.playQueue({ interactive: true });
             }
           } else {
             if (player.isBackgroundRunning()) {
-              console.log(chalk.yellow('\n  ℹ️ 이미 백그라운드 재생 중입니다.'));
+              console.log(chalk.yellow(tr('music_info_already_bg', lang)));
               await pause(900);
             } else {
               player.startBackgroundPlayback();
-              console.log(chalk.green('\n  ✅ 백그라운드 재생이 시작되었습니다.'));
-              console.log(chalk.gray('  이제 메인으로 이동해도 음악이 계속 재생됩니다.'));
+              console.log(chalk.green(tr('music_bg_started', lang)));
+              console.log(chalk.gray(tr('music_bg_continues', lang)));
               await pause(1200);
             }
           }
@@ -108,16 +113,17 @@ export const runMusic = async () => {
 };
 
 const openLibraryMenu = async (player) => {
+  const lang = getConfig().language || 'ko';
   const { action } = await inquirer.prompt([{
     type: 'list',
     name: 'action',
-    message: '보관함 관리:',
+    message: tr('music_library_menu', lang),
     loop: false,
     choices: [
-      { name: '📂 플레이리스트 관리', value: 'playlist' },
-      { name: '📋 재생 목록 편집 (다중 삭제)', value: 'queue' },
-      { name: '🧹 재생 목록 비우기', value: 'clear' },
-      { name: '🔙 뒤로', value: 'back' }
+      { name: tr('music_library_playlist', lang), value: 'playlist' },
+      { name: tr('music_library_queue_edit', lang), value: 'queue' },
+      { name: tr('music_library_clear', lang), value: 'clear' },
+      { name: tr('music_library_back', lang), value: 'back' }
     ]
   }]);
 
@@ -125,37 +131,38 @@ const openLibraryMenu = async (player) => {
   if (action === 'queue') await manageQueue(player);
   if (action === 'clear') {
     if (player.queue.length === 0) {
-      console.log(chalk.yellow('\n  📭 이미 비어있습니다.'));
+      console.log(chalk.yellow(tr('music_already_empty', lang)));
       await pause(800);
       return;
     }
     const { ok } = await inquirer.prompt([{
       type: 'confirm',
       name: 'ok',
-      message: `재생 목록 ${player.queue.length}곡을 비울까요?`,
+      message: tr('music_clear_confirm', lang, { value: player.queue.length }),
       default: false
     }]);
     if (ok) {
       player.clearQueue();
-      console.log(chalk.green('\n  ✅ 재생 목록을 비웠습니다.'));
+      console.log(chalk.green(tr('music_cleared', lang)));
       await pause(900);
     }
   }
 };
 
 const openSettingsMenu = async (player) => {
+  const lang = getConfig().language || 'ko';
   const choices = [
-    { name: '🔄 반복 모드 변경', value: 'loop' }
+    { name: tr('music_settings_loop', lang), value: 'loop' }
   ];
   if (player.isBackgroundRunning()) {
-    choices.push({ name: '⏹ 백그라운드 재생 중지', value: 'stop_bg' });
+    choices.push({ name: tr('music_settings_stop_bg', lang), value: 'stop_bg' });
   }
-  choices.push({ name: '🔙 뒤로', value: 'back' });
+  choices.push({ name: tr('music_library_back', lang), value: 'back' });
 
   const { action } = await inquirer.prompt([{
     type: 'list',
     name: 'action',
-    message: '재생 설정:',
+    message: tr('music_settings_menu', lang),
     loop: false,
     choices
   }]);
@@ -164,29 +171,30 @@ const openSettingsMenu = async (player) => {
     const { mode } = await inquirer.prompt([{
       type: 'list',
       name: 'mode',
-      message: '반복 모드 설정:',
+      message: tr('music_loop_select', lang),
       loop: false,
       choices: [
-        { name: '➡️ 반복 없음', value: 'NONE' },
-        { name: '🔁 전체 반복', value: 'ALL' },
-        { name: '🔂 한곡 반복', value: 'ONE' }
+        { name: tr('music_mode_none', lang), value: 'NONE' },
+        { name: tr('music_mode_all', lang), value: 'ALL' },
+        { name: tr('music_mode_one', lang), value: 'ONE' }
       ]
     }]);
     player.setLoop(mode);
-    console.log(chalk.green('\n  ✅ 설정이 변경되었습니다.'));
+    console.log(chalk.green(tr('music_settings_changed', lang)));
     await pause(800);
   }
 
   if (action === 'stop_bg') {
     player.stopBackgroundPlayback();
-    console.log(chalk.green('\n  ⏹ 백그라운드 재생을 중지했습니다.'));
+    console.log(chalk.green(tr('music_bg_stopped', lang)));
     await pause(900);
   }
 };
 
 const manageQueue = async (player) => {
+  const lang = getConfig().language || 'ko';
   if (player.queue.length === 0) {
-    console.log(chalk.yellow('\n  📭 재생 목록이 비어있습니다.'));
+    console.log(chalk.yellow(tr('music_queue_empty', lang)));
     await pause(1000);
     return;
   }
@@ -194,7 +202,7 @@ const manageQueue = async (player) => {
   const { indexesToDelete } = await inquirer.prompt([{
     type: 'checkbox',
     name: 'indexesToDelete',
-    message: '삭제할 노래를 선택하세요 (Space:선택, Enter:확정):',
+    message: tr('music_delete_select', lang),
     pageSize: 10,
     loop: false,
     choices: player.queue.map((song, idx) => ({
@@ -206,7 +214,7 @@ const manageQueue = async (player) => {
   if (!indexesToDelete || indexesToDelete.length === 0) return;
 
   indexesToDelete.sort((a, b) => b - a).forEach(index => player.remove(index));
-  console.log(chalk.green(`\n  🗑️ ${indexesToDelete.length}곡을 삭제했습니다.`));
+  console.log(chalk.green(tr('music_deleted_count', lang, { value: indexesToDelete.length })));
   await pause(1000);
 };
 
@@ -215,20 +223,21 @@ const pause = (ms) => new Promise(r => setTimeout(r, ms));
 const maybeHandleRestoredQueue = async (player) => {
   if (!player.hadRestoredQueue || player.queue.length === 0 || player.isBackgroundRunning()) return;
   const config = getConfig();
+  const lang = config.language || 'ko';
   if (!config.autoResumeMusic) return;
 
   const currentTrack = player.queue[player.currentIndex];
-  const currentLabel = currentTrack?.title ? `\n  이어서 재생 위치: ${chalk.yellow(currentTrack.title)}` : '';
+  const currentLabel = currentTrack?.title ? tr('music_restore_pos', lang, { value: chalk.yellow(currentTrack.title) }) : '';
 
   const { action } = await inquirer.prompt([{
     type: 'list',
     name: 'action',
-    message: `이전 대기열(${player.queue.length}곡)을 불러왔습니다.${currentLabel}\n어떻게 할까요?`,
+    message: tr('music_restore_message', lang, { value: player.queue.length, current: currentLabel }),
     loop: false,
     choices: [
-      { name: '🧩 백그라운드로 바로 재개', value: 'resume' },
-      { name: '📚 대기열만 유지', value: 'keep' },
-      { name: '🧹 대기열 비우기', value: 'clear' }
+      { name: tr('music_restore_resume', lang), value: 'resume' },
+      { name: tr('music_restore_keep', lang), value: 'keep' },
+      { name: tr('music_restore_clear', lang), value: 'clear' }
     ]
   }]);
 
@@ -236,14 +245,14 @@ const maybeHandleRestoredQueue = async (player) => {
 
   if (action === 'resume') {
     player.startBackgroundPlayback();
-    console.log(chalk.green('\n  ✅ 이전 대기열을 백그라운드로 재개했습니다.'));
+    console.log(chalk.green(tr('music_restore_resumed', lang)));
     await pause(1000);
     return;
   }
 
   if (action === 'clear') {
     player.clearQueue();
-    console.log(chalk.green('\n  ✅ 이전 대기열을 비웠습니다.'));
+    console.log(chalk.green(tr('music_restore_cleared', lang)));
     await pause(900);
   }
 };

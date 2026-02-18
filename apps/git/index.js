@@ -2,15 +2,20 @@ import inquirer from 'inquirer';
 import chalk from 'chalk';
 import { execSync } from 'child_process';
 import { GitNavigator } from './core/navigator.js';
+import { getTheme } from '../core/theme.js';
+import { getConfig } from '../core/config.js';
+import { tr } from '../core/i18n.js';
 
 // 탐색기 인스턴스 생성
 const navigator = new GitNavigator();
 
 export const runGit = async () => {
+  const t = getTheme();
   while (true) {
+    const lang = getConfig().language || 'ko';
     console.clear();
-    console.log(chalk.magenta.bold('\n  🐙 DevDeck Git Manager'));
-    console.log(chalk.gray('  ──────────────────────────────────'));
+    console.log(t.title(tr('git_title', lang)));
+    console.log(t.muted('  ──────────────────────────────────'));
 
     // 1. 현재 Git 상태 요약 표시
     try {
@@ -23,12 +28,12 @@ export const runGit = async () => {
         const staged = lines.filter(l => l[0] !== ' ' && l[0] !== '?').length;
         const changes = lines.length;
         
-        console.log(`  상태: ${chalk.yellow(changes)}개 변경됨 / ${chalk.green(staged)}개 Staged(담김)`);
+        console.log(tr('git_status_summary', lang, { changes: t.warning(changes), staged: t.success(staged) }));
       } else {
-        console.log(chalk.gray('  (현재 변경된 파일이 없습니다)'));
+        console.log(t.muted(tr('git_no_changes', lang)));
       }
     } catch (e) {
-      console.log(chalk.red('  🚫 현재 위치는 Git 저장소가 아닙니다.'));
+      console.log(t.danger(tr('git_not_repo', lang)));
     }
     console.log('');
 
@@ -36,14 +41,14 @@ export const runGit = async () => {
     const { action } = await inquirer.prompt([{
       type: 'list',
       name: 'action',
-      message: '작업을 선택하세요:',
+      message: tr('git_select_action', lang),
       choices: [
-        { name: '📂 디렉토리별 탐색 & Staging', value: 'navigator' },
-        { name: '📦 변경사항 커밋 (Commit)', value: 'commit' },
-        { name: '🚀 원격 저장소로 푸시 (Push)', value: 'push' },
-        { name: '⬇️  원격 변경사항 당겨오기 (Pull)', value: 'pull' },
+        { name: tr('git_nav', lang), value: 'navigator' },
+        { name: tr('git_commit', lang), value: 'commit' },
+        { name: tr('git_push', lang), value: 'push' },
+        { name: tr('git_pull', lang), value: 'pull' },
         new inquirer.Separator(),
-        { name: '🔙 메인으로', value: 'exit' }
+        { name: tr('git_exit', lang), value: 'exit' }
       ]
     }]);
 
@@ -62,8 +67,8 @@ export const runGit = async () => {
             // Staged 된 파일이 있는지 확인
             const stagedCheck = execSync('git diff --cached --name-only', { encoding: 'utf8' });
             if (!stagedCheck.trim()) {
-              console.log(chalk.yellow('\n  ⚠️ 커밋할 파일이 담기지(Staged) 않았습니다.'));
-              console.log(chalk.gray('  먼저 "📂 디렉토리별 탐색" 메뉴에서 파일을 Space로 체크 후 Enter로 선택해주세요.'));
+              console.log(chalk.yellow(tr('git_no_staged', lang)));
+              console.log(chalk.gray(tr('git_no_staged_hint', lang)));
               await pause(2000);
               break;
             }
@@ -71,46 +76,46 @@ export const runGit = async () => {
             const { message } = await inquirer.prompt([{
               type: 'input',
               name: 'message',
-              message: '커밋 메시지를 입력하세요:',
-              validate: (input) => input.trim() ? true : '메시지를 입력해주세요.'
+              message: tr('git_commit_msg', lang),
+              validate: (input) => input.trim() ? true : tr('git_commit_msg_required', lang)
             }]);
 
             execSync(`git commit -m "${message}"`, { stdio: 'inherit' });
-            console.log(chalk.green('\n  ✅ 커밋 완료!'));
+            console.log(chalk.green(tr('git_commit_done', lang)));
             await pause(1000);
 
           } catch (e) {
-            console.log(chalk.red(`\n  🚫 커밋 실패: ${e.message}`));
+            console.log(chalk.red(tr('git_commit_failed', lang, { value: e.message })));
             await pause(1500);
           }
           break;
 
         case 'push':
           // 🚀 푸시 로직
-          console.log(chalk.cyan('\n  🚀 Pushing to remote...'));
+          console.log(chalk.cyan(tr('git_pushing', lang)));
           try {
             execSync('git push', { stdio: 'inherit' });
-            console.log(chalk.green('\n  ✅ 푸시 완료!'));
+            console.log(chalk.green(tr('git_push_done', lang)));
           } catch (e) {
-            console.log(chalk.red('\n  🚫 푸시 실패 (충돌이 있거나 권한이 없을 수 있습니다).'));
+            console.log(chalk.red(tr('git_push_failed', lang)));
           }
           await pause(1500);
           break;
 
         case 'pull':
           // ⬇️ 풀 로직
-          console.log(chalk.cyan('\n  ⬇️  Pulling from remote...'));
+          console.log(chalk.cyan(tr('git_pulling', lang)));
           try {
             execSync('git pull', { stdio: 'inherit' });
-            console.log(chalk.green('\n  ✅ 업데이트 완료!'));
+            console.log(chalk.green(tr('git_pull_done', lang)));
           } catch (e) {
-            console.log(chalk.red('\n  🚫 풀 실패.'));
+            console.log(chalk.red(tr('git_pull_failed', lang)));
           }
           await pause(1500);
           break;
       }
     } catch (error) {
-      console.log(chalk.red(`\n🚫 치명적 오류: ${error.message}`));
+      console.log(chalk.red(tr('git_fatal', lang, { value: error.message })));
       await pause(1500);
     }
   }

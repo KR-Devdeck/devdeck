@@ -11,8 +11,10 @@ import { fileURLToPath } from 'url';
 import { runDaily } from '../apps/daily/index.js';
 import { runMusic } from '../apps/music/index.js';
 import { runGit } from '../apps/git/index.js';
-import { getConfig, getConfigPath, getDefaultConfig, saveConfig, updateConfig } from '../apps/core/config.js';
-import { buildDoctorReport, printDoctorReport, runAutoUpdateIfNeeded, runSelfUpdate } from '../apps/core/system.js';
+import { getConfig, getDefaultConfig, saveConfig, updateConfig } from '../apps/core/config.js';
+import { buildDoctorReport, printDoctorReport, runAutoDoctorIfNeeded, runAutoUpdateIfNeeded, runSelfUpdate } from '../apps/core/system.js';
+import { getTheme } from '../apps/core/theme.js';
+import { tr, getSupportedLanguages } from '../apps/core/i18n.js';
 
 const program = new Command();
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -38,34 +40,55 @@ program.command('config').action(async () => {
   await openConfigMenu();
 });
 
+const runToolByKey = async (tool) => {
+  if (tool === 'daily') return runDaily();
+  if (tool === 'music') return runMusic();
+  if (tool === 'git') return runGit();
+};
+
+const getModeLabel = (mode, lang) => {
+  if (mode === 'foreground') return tr('playback_fg', lang);
+  return tr('playback_bg', lang);
+};
+
+const getStartupToolLabel = (tool, lang) => {
+  if (tool === 'daily') return tr('startup_tool_daily', lang);
+  if (tool === 'music') return tr('startup_tool_music', lang);
+  if (tool === 'git') return tr('startup_tool_git', lang);
+  return tr('startup_tool_menu', lang);
+};
+
 // 2. 메인 메뉴 함수 (무한 루프 구조)
 const showMainMenu = async () => {
   console.clear();
-  
-  // 타이틀 출력
-  console.log(
-    chalk.cyan(
-      figlet.textSync('DevDeck', { horizontalLayout: 'full' })
-    )
-  );
-  console.log(chalk.yellow.bold('  🚀 Welcome to Your Command Center\n'));
+
+  const config = getConfig();
+  const lang = config.language || 'ko';
+  const t = getTheme();
+  if (config.showWelcomeBanner) {
+    console.log(
+      t.primary(
+        figlet.textSync('DevDeck', { horizontalLayout: 'full' })
+      )
+    );
+  }
+  console.log(t.accent(tr('welcome', lang)));
 
   const { choice } = await inquirer.prompt([
     {
       type: 'list',
       name: 'choice',
-      message: 'Select Tool:',
+      message: tr('select_tool', lang),
       pageSize: 10,
       choices: [
-        { name: '📅  데일리 대시보드 (Daily)', value: 'daily' },
-        { name: '🎵  뮤직 플레이어 (Music)', value: 'music' },
-        { name: '🐙  Git 매니저 (Git)', value: 'git' },
+        { name: tr('menu_daily', lang), value: 'daily' },
+        { name: tr('menu_music', lang), value: 'music' },
+        { name: tr('menu_git', lang), value: 'git' },
         new inquirer.Separator(),
-        { name: '🩺  환경 진단 (Doctor)', value: 'doctor' },
-        { name: '⚙️  설정 (Config)', value: 'config' },
-        { name: '🔄  DevDeck 업데이트 (Update)', value: 'update' },
+        { name: tr('menu_config', lang), value: 'config' },
+        { name: tr('menu_help', lang), value: 'help' },
         new inquirer.Separator(),
-        { name: '❌  종료 (Exit)', value: 'exit' }
+        { name: tr('menu_exit', lang), value: 'exit' }
       ]
     }
   ]);
@@ -73,39 +96,43 @@ const showMainMenu = async () => {
   // [핵심 수정] 앱 실행이 끝나면 다시 showMainMenu()를 호출
   try {
     if (choice === 'daily') {
-      await runDaily();
+      await runToolByKey('daily');
       await showMainMenu(); // <--- 돌아오기!
     } 
     else if (choice === 'music') {
-      await runMusic();
+      await runToolByKey('music');
       await showMainMenu(); // <--- 돌아오기!
     } 
     else if (choice === 'git') {
-      await runGit();
+      await runToolByKey('git');
       await showMainMenu(); // <--- 돌아오기!
     } 
-    else if (choice === 'doctor') {
-      const report = buildDoctorReport();
-      printDoctorReport(report);
-      await wait(800);
-      await showMainMenu();
-    }
     else if (choice === 'config') {
       await openConfigMenu();
       await showMainMenu();
     }
-    else if (choice === 'update') {
-      runSelfUpdate();
-      await wait(800);
+    else if (choice === 'help') {
+      console.log(t.title(tr('help_title', lang)));
+      console.log(t.muted(tr('help_d', lang)));
+      console.log(t.muted(tr('help_m', lang)));
+      console.log(t.muted(tr('help_g', lang)));
+      console.log(t.muted(tr('help_doctor', lang)));
+      console.log(t.muted(tr('help_update', lang)));
+      await inquirer.prompt([{
+        type: 'input',
+        name: 'ok',
+        message: tr('help_back', lang)
+      }]);
       await showMainMenu();
     }
     else {
       // Exit 선택 시
-      console.log(chalk.gray('See you next time! 👋'));
+      console.log(t.muted(tr('goodbye', lang)));
       process.exit(0);
     }
   } catch (error) {
-    console.error(chalk.red('Error detected, returning to menu...'));
+    const detail = error?.message ? `: ${error.message}` : '';
+    console.error(t.danger(tr('error_return', lang, { detail })));
     await new Promise(r => setTimeout(r, 1000));
     await showMainMenu();
   }
@@ -114,28 +141,30 @@ const showMainMenu = async () => {
 const openConfigMenu = async () => {
   while (true) {
     const config = getConfig();
+    const lang = config.language || 'ko';
+    const t = getTheme();
     console.clear();
-    console.log(chalk.cyan.bold('\n  ⚙️ DevDeck Config'));
-    console.log(chalk.gray('  ──────────────────────────────────'));
-    console.log(`  path: ${chalk.gray(getConfigPath())}`);
-    console.log(`  theme: ${chalk.yellow(config.theme)}`);
-    console.log(`  defaultPlaybackMode: ${chalk.yellow(config.defaultPlaybackMode)}`);
-    console.log(`  autoUpdate: ${chalk.yellow(String(config.autoUpdate))}`);
-    console.log(`  autoResumeMusic: ${chalk.yellow(String(config.autoResumeMusic))}`);
+    console.log(t.title(tr('cfg_title', lang)));
+    console.log(t.muted('  ──────────────────────────────────'));
+    console.log(`  ${tr('cfg_startup_tool', lang)}: ${t.accent(getStartupToolLabel(config.startupTool, lang))}`);
+    console.log(`  ${tr('cfg_cat_language', lang)}: ${t.accent(config.language || 'ko')}`);
+    console.log(`  ${tr('cfg_auto_doctor', lang)}: ${t.accent(`${String(config.autoDoctor)} (${config.doctorCheckIntervalHours})`)}`);
+    console.log(`  ${tr('cfg_auto_update', lang)}: ${t.accent(`${String(config.autoUpdate)} (${config.updateCheckIntervalHours})`)}`);
+    console.log(`  ${tr('cfg_default_playback', lang)}: ${t.accent(getModeLabel(config.defaultPlaybackMode, lang))} / ${tr('cfg_auto_resume', lang)}=${t.accent(String(config.autoResumeMusic))}`);
     console.log('');
 
     const { action } = await inquirer.prompt([{
       type: 'list',
       name: 'action',
-      message: '수정할 항목을 선택하세요:',
+      message: tr('cfg_select_category', lang),
       loop: false,
       choices: [
-        { name: 'Theme', value: 'theme' },
-        { name: 'Default Playback Mode', value: 'playback' },
-        { name: 'Auto Update', value: 'autoUpdate' },
-        { name: 'Auto Resume Music', value: 'autoResumeMusic' },
-        { name: 'Reset to Defaults', value: 'reset' },
-        { name: 'Back', value: 'back' }
+        { name: tr('cfg_cat_startup', lang), value: 'startup' },
+        { name: tr('cfg_cat_playback', lang), value: 'playback' },
+        { name: tr('cfg_cat_theme', lang), value: 'theme' },
+        { name: tr('cfg_cat_language', lang), value: 'language' },
+        { name: tr('cfg_cat_reset', lang), value: 'reset' },
+        { name: tr('cfg_cat_back', lang), value: 'back' }
       ]
     }]);
 
@@ -145,45 +174,157 @@ const openConfigMenu = async () => {
       const { value } = await inquirer.prompt([{
         type: 'list',
         name: 'value',
-        message: 'Theme:',
+        message: tr('theme_select', lang),
         loop: false,
-        choices: ['default', 'minimal']
+        choices: [
+          { name: tr('theme_default', lang), value: 'default' },
+          { name: tr('theme_minimal', lang), value: 'minimal' }
+        ]
       }]);
       updateConfig({ theme: value });
     }
-    if (action === 'playback') {
+    if (action === 'language') {
+      const supported = getSupportedLanguages();
       const { value } = await inquirer.prompt([{
         type: 'list',
         name: 'value',
-        message: 'Default Playback Mode:',
+        message: tr('language_select', lang),
         loop: false,
-        choices: ['background', 'foreground']
+        choices: supported.map((code) => ({
+          name: code === 'ko' ? tr('lang_ko', lang)
+            : code === 'en' ? tr('lang_en', lang)
+            : code === 'ja' ? tr('lang_ja', lang)
+            : tr('lang_zh_cn', lang),
+          value: code
+        }))
       }]);
-      updateConfig({ defaultPlaybackMode: value });
+      updateConfig({ language: value });
     }
-    if (action === 'autoUpdate') {
-      const { value } = await inquirer.prompt([{
-        type: 'confirm',
-        name: 'value',
-        message: 'Enable auto update flag?',
-        default: config.autoUpdate
+    if (action === 'playback') {
+      const { field } = await inquirer.prompt([{
+        type: 'list',
+        name: 'field',
+        message: tr('playback_menu', lang),
+        choices: [
+          { name: tr('playback_mode_item', lang, { value: getModeLabel(config.defaultPlaybackMode, lang) }), value: 'mode' },
+          { name: tr('playback_resume_item', lang, { value: String(config.autoResumeMusic) }), value: 'resume' },
+          { name: tr('back', lang), value: 'back' }
+        ]
       }]);
-      updateConfig({ autoUpdate: value });
+      if (field === 'mode') {
+        const { value } = await inquirer.prompt([{
+          type: 'list',
+          name: 'value',
+          message: tr('playback_mode_select', lang),
+          loop: false,
+          choices: [
+            { name: tr('playback_bg', lang), value: 'background' },
+            { name: tr('playback_fg', lang), value: 'foreground' }
+          ]
+        }]);
+        updateConfig({ defaultPlaybackMode: value });
+      }
+      if (field === 'resume') {
+        const { value } = await inquirer.prompt([{
+          type: 'confirm',
+          name: 'value',
+          message: tr('playback_resume_confirm', lang),
+          default: config.autoResumeMusic
+        }]);
+        updateConfig({ autoResumeMusic: value });
+      }
     }
-    if (action === 'autoResumeMusic') {
-      const { value } = await inquirer.prompt([{
-        type: 'confirm',
-        name: 'value',
-        message: 'Restore previous queue when opening Music?',
-        default: config.autoResumeMusic
+    if (action === 'startup') {
+      const { field } = await inquirer.prompt([{
+        type: 'list',
+        name: 'field',
+        message: tr('startup_menu', lang),
+        choices: [
+          { name: tr('startup_tool_item', lang, { value: getStartupToolLabel(config.startupTool, lang) }), value: 'startupTool' },
+          { name: tr('startup_banner_item', lang, { value: String(config.showWelcomeBanner) }), value: 'banner' },
+          { name: tr('startup_doctor_item', lang, { value: String(config.autoDoctor) }), value: 'autoDoctor' },
+          { name: tr('startup_doctor_interval_item', lang, { value: config.doctorCheckIntervalHours }), value: 'doctorInterval' },
+          { name: tr('startup_update_item', lang, { value: String(config.autoUpdate) }), value: 'autoUpdate' },
+          { name: tr('startup_update_interval_item', lang, { value: config.updateCheckIntervalHours }), value: 'updateInterval' },
+          { name: tr('back', lang), value: 'back' }
+        ]
       }]);
-      updateConfig({ autoResumeMusic: value });
+
+      if (field === 'startupTool') {
+        const { value } = await inquirer.prompt([{
+          type: 'list',
+          name: 'value',
+          message: tr('startup_tool_select', lang),
+          choices: [
+            { name: tr('startup_tool_menu', lang), value: 'menu' },
+            { name: tr('startup_tool_daily', lang), value: 'daily' },
+            { name: tr('startup_tool_music', lang), value: 'music' },
+            { name: tr('startup_tool_git', lang), value: 'git' }
+          ]
+        }]);
+        updateConfig({ startupTool: value });
+      }
+      if (field === 'banner') {
+        const { value } = await inquirer.prompt([{
+          type: 'confirm',
+          name: 'value',
+          message: tr('startup_banner_confirm', lang),
+          default: config.showWelcomeBanner
+        }]);
+        updateConfig({ showWelcomeBanner: value });
+      }
+      if (field === 'autoDoctor') {
+        const { value } = await inquirer.prompt([{
+          type: 'confirm',
+          name: 'value',
+          message: tr('startup_doctor_confirm', lang),
+          default: config.autoDoctor
+        }]);
+        updateConfig({ autoDoctor: value });
+      }
+      if (field === 'doctorInterval') {
+        const { value } = await inquirer.prompt([{
+          type: 'list',
+          name: 'value',
+          message: tr('startup_doctor_interval_select', lang),
+          choices: [
+            { name: tr('hours_6', lang), value: 6 },
+            { name: tr('hours_12', lang), value: 12 },
+            { name: tr('hours_24', lang), value: 24 },
+            { name: tr('hours_48', lang), value: 48 }
+          ]
+        }]);
+        updateConfig({ doctorCheckIntervalHours: value });
+      }
+      if (field === 'autoUpdate') {
+        const { value } = await inquirer.prompt([{
+          type: 'confirm',
+          name: 'value',
+          message: tr('startup_update_confirm', lang),
+          default: config.autoUpdate
+        }]);
+        updateConfig({ autoUpdate: value });
+      }
+      if (field === 'updateInterval') {
+        const { value } = await inquirer.prompt([{
+          type: 'list',
+          name: 'value',
+          message: tr('startup_update_interval_select', lang),
+          choices: [
+            { name: tr('hours_6', lang), value: 6 },
+            { name: tr('hours_12', lang), value: 12 },
+            { name: tr('hours_24', lang), value: 24 },
+            { name: tr('hours_48', lang), value: 48 }
+          ]
+        }]);
+        updateConfig({ updateCheckIntervalHours: value });
+      }
     }
     if (action === 'reset') {
       const { ok } = await inquirer.prompt([{
         type: 'confirm',
         name: 'ok',
-        message: 'Reset all config values to defaults?',
+        message: tr('reset_confirm', lang),
         default: false
       }]);
       if (ok) saveConfig(getDefaultConfig());
@@ -191,14 +332,21 @@ const openConfigMenu = async () => {
   }
 };
 
-const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+const runDefaultStartupFlow = async () => {
+  runAutoDoctorIfNeeded();
+  runAutoUpdateIfNeeded();
+
+  const config = getConfig();
+  if (config.startupTool && config.startupTool !== 'menu') {
+    await runToolByKey(config.startupTool);
+  }
+  await showMainMenu();
+};
 
 // 3. 실행 로직 판단
 // 인자가 없으면 메인 메뉴 실행
 if (!process.argv.slice(2).length) {
-  runAutoUpdateIfNeeded();
-  showMainMenu();
+  runDefaultStartupFlow();
 } else {
-  runAutoUpdateIfNeeded();
   program.parse(process.argv);
 }

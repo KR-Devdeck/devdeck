@@ -5,6 +5,7 @@ import net from 'net';
 import os from 'os';
 import path from 'path';
 import fs from 'fs';
+import { getConfig } from '../../core/config.js';
 
 export class MusicPlayer {
   constructor() {
@@ -168,7 +169,7 @@ export class MusicPlayer {
 
       if (interactive) {
         console.clear();
-        console.log(chalk.cyan(`\n  🎵 '${song.title}' 로딩 중...`));
+        console.log(chalk.cyan(`\n  🎵 ${this.t('loading_song', { title: song.title })}`));
       }
 
       let streamUrl = '';
@@ -176,7 +177,7 @@ export class MusicPlayer {
         streamUrl = this.resolveStreamUrl(song.videoId);
       } catch (e) {
         if (interactive) {
-          console.log(chalk.red('\n  🚫 스트림 URL을 가져오지 못했습니다. 다음 곡으로 넘어갑니다.'));
+          console.log(chalk.red(this.t('stream_fail')));
         }
         setTimeout(() => resolve('SKIP'), 1000);
         return;
@@ -344,7 +345,7 @@ export class MusicPlayer {
       }
     }
 
-    throw new Error('Unable to resolve stream URL');
+    throw new Error(this.t('stream_unresolved'));
   }
 
   renderUI(song, current, total) {
@@ -373,8 +374,8 @@ export class MusicPlayer {
     console.log(`   ${statusIcon}  ${chalk.yellow(this.formatTime(this.currentSec))}  ${bar}  ${chalk.dim(this.formatTime(this.totalSec))}`);
     console.log('');
     console.log(chalk.gray(' ───────────────────────────────────────────'));
-    console.log(chalk.cyan(`  [Space] Pause    [←/→] Seek    [↑/↓] Volume`));
-    console.log(chalk.cyan(`  [s] Skip         [q] Quit`));
+    console.log(chalk.cyan(this.t('controls_1')));
+    console.log(chalk.cyan(this.t('controls_2')));
   }
 
   truncate(str, n) { return str?.length > n ? str.substr(0, n - 1) + '…' : str; }
@@ -413,5 +414,18 @@ export class MusicPlayer {
     } catch (e) {
       // ignore save failure
     }
+  }
+
+  t(key, vars = {}) {
+    const lang = getConfig().language || 'ko';
+    const m = {
+      loading_song: { ko: "'{title}' 로딩 중...", en: "Loading '{title}'...", ja: "'{title}' をロード中...", 'zh-CN': "正在加载 '{title}'..." },
+      stream_fail: { ko: '\n  🚫 스트림 URL을 가져오지 못했습니다. 다음 곡으로 넘어갑니다.', en: '\n  🚫 Could not resolve stream URL. Skipping to next track.', ja: '\n  🚫 ストリームURLを取得できません。次の曲へ移動します。', 'zh-CN': '\n  🚫 无法解析流地址，跳到下一首。' },
+      stream_unresolved: { ko: '스트림 URL을 확인할 수 없습니다.', en: 'Unable to resolve stream URL', ja: 'ストリームURLを解決できません。', 'zh-CN': '无法解析流地址。' },
+      controls_1: { ko: '  [Space] 일시정지    [←/→] 탐색    [↑/↓] 볼륨', en: '  [Space] Pause    [←/→] Seek    [↑/↓] Volume', ja: '  [Space] 一時停止    [←/→] シーク    [↑/↓] 音量', 'zh-CN': '  [Space] 暂停    [←/→] 快进/后退    [↑/↓] 音量' },
+      controls_2: { ko: '  [s] 다음곡         [q] 종료', en: '  [s] Skip         [q] Quit', ja: '  [s] スキップ      [q] 終了', 'zh-CN': '  [s] 跳过         [q] 退出' }
+    };
+    const raw = (m[key]?.[lang] ?? m[key]?.ko ?? key);
+    return Object.entries(vars).reduce((acc, [k, v]) => acc.replaceAll(`{${k}}`, String(v)), raw);
   }
 }

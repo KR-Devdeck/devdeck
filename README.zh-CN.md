@@ -1,62 +1,47 @@
-# 🎴 DevDeck (Developer's Command Center)
+<p align="center">
+  <img width="100%" alt="DevDeck hero" src="docs/media/devdeck-hero.svg" />
+</p>
 
-**Language**: [한국어](README.md) | [English](README.en.md) | [日本語](README.ja.md) | [中文](README.zh-CN.md)
+<p align="center">
+  <b>Developer's Command Center</b><br/>
+  在终端中统一处理日程、音乐和 Git 工作流的一体化 CLI
+</p>
 
-> 默认文档为韩语 (`README.md`)。请在上方选择你的语言。
+<p align="center">
+  <a href="README.md">한국어</a> ·
+  <a href="README.en.md">English</a> ·
+  <a href="README.ja.md">日本語</a> ·
+  <a href="README.zh-CN.md">中文</a>
+</p>
 
-> **“连把手移到鼠标上的时间都不想浪费。”**
-> 面向开发者的一体化终端效率工具（日程、音乐、Git 管理）。
-
-![Version](https://img.shields.io/badge/version-1.1.2-blue.svg)
-![Node](https://img.shields.io/badge/node-%3E%3D18-green.svg)
-![License](https://img.shields.io/badge/license-Non--Commercial-red.svg)
-
-**DevDeck** 让你在不离开终端的情况下完成常用开发流程。
-只需一个 `deck` 命令，即可管理每日任务、播放音乐和处理 Git。
-
----
-
-## ✨ 主要功能
-
-### 📅 Daily Dashboard
-
-- 在终端快速查看和管理今日待办
-- 显示天气信息和开发者名言
-
-### 🎧 Terminal Jukebox
-
-- 直接流式播放，不在本地保存音频文件
-- 基于 `mpv` 与 `yt-dlp` 的轻量播放与搜索
-- 支持队列、循环、快进快退、跳过、后台控制
-
-### 🐙 Git Manager
-
-- 多文件批量暂存
-- 基于当前状态的智能提交流程
-- `.gitignore` 辅助生成
+<p align="center">
+  <img src="https://img.shields.io/badge/node-%3E%3D18-1f883d" alt="node" />
+  <img src="https://img.shields.io/badge/license-Non--Commercial-c62828" alt="license" />
+  <img src="https://img.shields.io/badge/npm-%40beargame%2Fdevdeck-CB3837" alt="npm" />
+</p>
 
 ---
 
-## 🛠 环境要求
+## Preview
 
-- Node.js 18+（推荐 LTS）
-- 音乐功能需要 `mpv` 和 `yt-dlp`
+| Dashboard | Music | Git Manager |
+| :--: | :--: | :--: |
+| <img width="230" height="130" alt="Dashboard preview" src="docs/media/preview-dashboard.png" /> | <img width="230" height="130" alt="Music preview" src="docs/media/preview-music.png" /> | <img width="230" height="130" alt="Git preview" src="docs/media/preview-git.png" /> |
 
-Node.js 安装地址: [nodejs.org](https://nodejs.org/)。
+<p align="center">
+  <img width="680" alt="DevDeck demo" src="docs/media/devdeck-demo.gif" />
+</p>
 
 ---
 
-## 🚀 安装
-
-### A) 全局安装（推荐）
+## Quick Start
 
 ```bash
 npm install -g @beargame/devdeck
+deck
 ```
 
-`postinstall` 会尝试自动安装 `mpv` 与 `yt-dlp`。
-
-### B) 从源码安装
+从源码运行:
 
 ```bash
 git clone https://github.com/KR-Devdeck/devdeck.git
@@ -66,25 +51,52 @@ npm run setup
 
 ---
 
-## 🎮 使用方式
+## Features
 
-```bash
-deck
-```
-
-| 命令 | 说明 |
-| :-- | :-- |
-| `deck` | 主仪表盘 |
-| `deck m` | 音乐播放器 |
-| `deck g` | Git 管理器 |
+- Daily Dashboard: 待办、天气、开发者语录
+- Terminal Jukebox: 基于 `mpv` + `yt-dlp` 的搜索/播放/循环/快进快退
+- Git Manager: 多文件暂存、智能提交流程、`.gitignore` 辅助
 
 ---
 
-## ❓ 常见问题
+## Commands
 
-- 音乐无法播放/搜索: 检查 `mpv --version` 与 `yt-dlp --version`
+| Command | Description |
+| :-- | :-- |
+| `deck` | 打开主面板 |
+| `deck m` | 打开音乐播放器 |
+| `deck g` | 打开 Git 管理器 |
+
+---
+
+## Required Media Filenames
+
+使用以下固定文件名可直接在 README 中渲染。
+
+- `docs/media/devdeck-demo.gif`
+- `docs/media/devdeck-hero.svg`
+- `docs/media/devdeck-logo.PNG`
+- `docs/media/preview-dashboard.png`
+- `docs/media/preview-music.png`
+- `docs/media/preview-git.png`
+
+---
+
+## Prerequisites
+
+- Node.js `>=18`
+- `mpv`
+- `yt-dlp`
+
+安装脚本会尝试自动安装 `mpv` 和 `yt-dlp`。
+
+---
+
+## Troubleshooting
+
+- 音乐/搜索异常: `mpv --version`, `yt-dlp --version`
 - 找不到 `deck`: 重新全局安装并重启终端
-- Windows 播放进程未退出:
+- Windows 播放进程残留:
 
 ```powershell
 taskkill /F /IM mpv.exe
@@ -92,23 +104,14 @@ taskkill /F /IM mpv.exe
 
 ---
 
-## ⚠️ 免责声明
+## License
 
-本项目用于教育和个人学习场景。
-程序不会在用户设备保存音频文件，仅作为流媒体客户端运行。
-用户需自行遵守相关平台条款和适用法律。
+This project is distributed under the **DevDeck Non-Commercial License**.
 
-## 📜 许可证
+- Commercial use is not allowed.
+- Selling this software is not allowed.
+- Monetized distribution is not allowed.
+- Redistributed copies must include the license notice.
 
-本项目采用 **DevDeck Non-Commercial License**。
-完整条款见 `LICENSE`。
-
-### 许可证摘要
-
-- 禁止商业用途
-- 禁止销售本软件
-- 禁止用于付费服务/产品或任何盈利分发
-- 再分发时必须保留许可证声明
-
-该许可证为自定义非商业许可证，不属于 OSI 批准的开源许可证。
-贡献条款请见 `CONTRIBUTING.md`。
+This is a custom non-commercial license and not an OSI-approved open-source license.
+See `LICENSE` and `CONTRIBUTING.md` for details.
