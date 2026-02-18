@@ -3,10 +3,13 @@ import chalk from 'chalk';
 import { MusicPlayer } from './core/player.js';
 import { searchMenu } from './core/search.js';
 import { managePlaylists } from './core/playlist.js'; // ✅ 추가됨
+import { getConfig } from '../core/config.js';
 
 const player = new MusicPlayer();
 
 export const runMusic = async () => {
+  await maybeHandleRestoredQueue(player);
+
   while (true) {
     console.clear();
     console.log(chalk.cyan.bold('\n  🎵  DevDeck Music Player  🎵'));
@@ -61,10 +64,13 @@ export const runMusic = async () => {
           console.log(chalk.red('\n  ❌ 재생할 노래가 없습니다.'));
           await pause(1000);
         } else {
+          const config = getConfig();
+          const defaultMode = config.defaultPlaybackMode === 'foreground' ? 'foreground' : 'background';
           const { mode } = await inquirer.prompt([{
             type: 'list',
             name: 'mode',
             message: '재생 모드:',
+            default: defaultMode,
             loop: false,
             choices: [
               { name: '🖥️ 전면 재생', value: 'foreground' },
@@ -110,12 +116,31 @@ const openLibraryMenu = async (player) => {
     choices: [
       { name: '📂 플레이리스트 관리', value: 'playlist' },
       { name: '📋 재생 목록 편집 (다중 삭제)', value: 'queue' },
+      { name: '🧹 재생 목록 비우기', value: 'clear' },
       { name: '🔙 뒤로', value: 'back' }
     ]
   }]);
 
   if (action === 'playlist') await managePlaylists(player);
   if (action === 'queue') await manageQueue(player);
+  if (action === 'clear') {
+    if (player.queue.length === 0) {
+      console.log(chalk.yellow('\n  📭 이미 비어있습니다.'));
+      await pause(800);
+      return;
+    }
+    const { ok } = await inquirer.prompt([{
+      type: 'confirm',
+      name: 'ok',
+      message: `재생 목록 ${player.queue.length}곡을 비울까요?`,
+      default: false
+    }]);
+    if (ok) {
+      player.clearQueue();
+      console.log(chalk.green('\n  ✅ 재생 목록을 비웠습니다.'));
+      await pause(900);
+    }
+  }
 };
 
 const openSettingsMenu = async (player) => {
@@ -186,3 +211,39 @@ const manageQueue = async (player) => {
 };
 
 const pause = (ms) => new Promise(r => setTimeout(r, ms));
+
+const maybeHandleRestoredQueue = async (player) => {
+  if (!player.hadRestoredQueue || player.queue.length === 0 || player.isBackgroundRunning()) return;
+  const config = getConfig();
+  if (!config.autoResumeMusic) return;
+
+  const currentTrack = player.queue[player.currentIndex];
+  const currentLabel = currentTrack?.title ? `\n  이어서 재생 위치: ${chalk.yellow(currentTrack.title)}` : '';
+
+  const { action } = await inquirer.prompt([{
+    type: 'list',
+    name: 'action',
+    message: `이전 대기열(${player.queue.length}곡)을 불러왔습니다.${currentLabel}\n어떻게 할까요?`,
+    loop: false,
+    choices: [
+      { name: '🧩 백그라운드로 바로 재개', value: 'resume' },
+      { name: '📚 대기열만 유지', value: 'keep' },
+      { name: '🧹 대기열 비우기', value: 'clear' }
+    ]
+  }]);
+
+  player.hadRestoredQueue = false;
+
+  if (action === 'resume') {
+    player.startBackgroundPlayback();
+    console.log(chalk.green('\n  ✅ 이전 대기열을 백그라운드로 재개했습니다.'));
+    await pause(1000);
+    return;
+  }
+
+  if (action === 'clear') {
+    player.clearQueue();
+    console.log(chalk.green('\n  ✅ 이전 대기열을 비웠습니다.'));
+    await pause(900);
+  }
+};

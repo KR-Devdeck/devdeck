@@ -4,7 +4,7 @@ import axios from 'axios';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import weather from 'weather-js';
+import { execSync } from 'child_process';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_FILE = path.join(__dirname, 'data.json');
@@ -12,34 +12,35 @@ const BOX_WIDTH = 52;
 
 let isFetchingWeather = false;
 
-// 🇰🇷 [업데이트] 모든 키를 소문자로 통일 (대소문자 무시 매칭용)
-const WEATHER_DICT = {
-  'sunny': '맑음 ☀️',
-  'clear': '맑음 ☀️',
-  'mostly sunny': '대체로 맑음 🌤️',
-  'Mostly clear': '대체로 맑음 🌤️',
-  'partly sunny': '구름 조금 ⛅',
-  'partly cloudy': '구름 조금 ⛅',
-  'mostly cloudy': '대체로 흐림 🌥️',
-  'cloudy': '흐림 ☁️',
-  'overcast': '매우 흐림 ☁️',
-  'rain': '비 ☔',
-  'showers': '소나기 ☔',
-  'light rain': '가벼운 비 ☔',
-  'rain showers': '비/소나기 ☔',
-  'heavy rain': '폭우 ☔',
-  'snow': '눈 ❄️',
-  'light snow': '가벼운 눈 🌨️',
-  'blowing snow': '날리는 눈 🌨️',
-  'rain and snow': '진눈깨비 🌨️',
-  'snow showers': '눈발 날림 🌨️',
-  'ice/snow': '얼음/눈 🧊',
-  'thunderstorm': '뇌우 ⚡',
-  'haze': '안개 🌫️',
-  'fog': '짙은 안개 🌫️',
-  'mist': '옅은 안개 🌫️',
-  'smoke': '미세먼지/연기 😷',
-  'dust': '먼지 😷'
+const WEATHER_CODE_KO = {
+  0: '맑음 ☀️',
+  1: '대체로 맑음 🌤️',
+  2: '구름 조금 ⛅',
+  3: '흐림 ☁️',
+  45: '안개 🌫️',
+  48: '안개(서리) 🌫️',
+  51: '약한 이슬비 ☔',
+  53: '이슬비 ☔',
+  55: '강한 이슬비 ☔',
+  56: '약한 어는비 🧊',
+  57: '강한 어는비 🧊',
+  61: '약한 비 ☔',
+  63: '비 ☔',
+  65: '강한 비 ☔',
+  66: '약한 어는비 🧊',
+  67: '강한 어는비 🧊',
+  71: '약한 눈 🌨️',
+  73: '눈 ❄️',
+  75: '강한 눈 ❄️',
+  77: '싸락눈 ❄️',
+  80: '약한 소나기 ☔',
+  81: '소나기 ☔',
+  82: '강한 소나기 ⛈️',
+  85: '약한 눈 소나기 🌨️',
+  86: '강한 눈 소나기 🌨️',
+  95: '뇌우 ⚡',
+  96: '우박 동반 뇌우 ⚡',
+  99: '강한 우박 동반 뇌우 ⚡'
 };
 
 const FALLBACK_QUOTES = [
@@ -66,29 +67,32 @@ const printBoxLine = (text) => {
 };
 
 const loadData = () => {
-  if (!fs.existsSync(DATA_FILE)) return { todos: [], weather: null, lastFetch: 0 };
+  if (!fs.existsSync(DATA_FILE)) return { todos: [], weather: null, lastFetch: 0, workflow: [] };
   try { return JSON.parse(fs.readFileSync(DATA_FILE, 'utf-8')); } 
-  catch { return { todos: [], weather: null, lastFetch: 0 }; }
+  catch { return { todos: [], weather: null, lastFetch: 0, workflow: [] }; }
 };
 
 const saveData = (data) => fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
 
-const fetchWeatherFromLib = () => {
-  return new Promise((resolve, reject) => {
-    weather.find({ search: 'Seoul, South Korea', degreeType: 'C' }, (err, result) => {
-      if (err) reject(err);
-      if (!result || result.length === 0) reject(new Error('No Data'));
-      
-      const current = result[0].current;
-      const engText = current.skytext; // 예: "Mostly Clear"
-      
-      // [수정] 소문자로 변환해서 찾음 (대소문자 문제 해결)
-      const lowerKey = engText.toLowerCase().trim();
-      const korText = WEATHER_DICT[lowerKey] || engText;
-      
-      resolve(`${korText} (${current.temperature}°C)`);
-    });
+const fetchWeatherFromApi = async () => {
+  const response = await axios.get('https://api.open-meteo.com/v1/forecast', {
+    timeout: 1200,
+    params: {
+      latitude: 37.5665,
+      longitude: 126.9780,
+      current: 'temperature_2m,weather_code',
+      timezone: 'Asia/Seoul',
+      forecast_days: 1
+    }
   });
+
+  const current = response?.data?.current;
+  if (!current) throw new Error('No Data');
+
+  const temp = Math.round(Number(current.temperature_2m));
+  const weatherCode = Number(current.weather_code);
+  const weatherText = WEATHER_CODE_KO[weatherCode] || '날씨 정보 확인 불가';
+  return `${weatherText} (${temp}°C)`;
 };
 
 const getWeatherNonBlocking = (currentData) => {
@@ -112,7 +116,7 @@ const getWeatherNonBlocking = (currentData) => {
 const updateWeatherBackground = async () => {
   isFetchingWeather = true;
   try {
-    const weatherText = await fetchWeatherFromLib();
+    const weatherText = await fetchWeatherFromApi();
     const newData = loadData();
     newData.weather = weatherText;
     newData.lastFetch = Date.now();
@@ -198,6 +202,7 @@ const todoLoop = async (data) => {
       { name: '➕ 추가 (Add)', value: 'add' },
       { name: '✅ 완료 (Toggle)', value: 'toggle' },
       { name: '🗑  삭제 (Delete)', value: 'delete' },
+      { name: '🔗 작업 흐름 보기 (Workflow)', value: 'workflow' },
       new inquirer.Separator(),
       { name: '🔄 새로고침 (Refresh)', value: 'refresh' },
       { name: '🔙 종료 (Exit)', value: 'quit' }
@@ -228,12 +233,74 @@ const todoLoop = async (data) => {
     
   } else if (action === 'toggle' && data.todos.length) {
     const { idx } = await inquirer.prompt([{ type: 'list', name: 'idx', message: '선택:', choices: data.todos.map((t, i) => ({ name: t.task, value: i })) }]);
-    data.todos[idx].done = !data.todos[idx].done; saveData(data);
+    data.todos[idx].done = !data.todos[idx].done;
+    if (data.todos[idx].done) {
+      const context = captureGitContext();
+      data.todos[idx].completedAt = new Date().toISOString();
+      data.todos[idx].git = context;
+      data.workflow = Array.isArray(data.workflow) ? data.workflow : [];
+      data.workflow.unshift({
+        task: data.todos[idx].task,
+        completedAt: data.todos[idx].completedAt,
+        git: context
+      });
+      data.workflow = data.workflow.slice(0, 20);
+    } else {
+      delete data.todos[idx].completedAt;
+      delete data.todos[idx].git;
+    }
+    saveData(data);
   } else if (action === 'delete' && data.todos.length) {
     const { idx } = await inquirer.prompt([{ type: 'list', name: 'idx', message: '삭제:', choices: data.todos.map((t, i) => ({ name: t.task, value: i })) }]);
     data.todos.splice(idx, 1); saveData(data);
+  } else if (action === 'workflow') {
+    await showWorkflow(data);
   }
 
   console.clear();
   await runDaily();
+};
+
+const captureGitContext = () => {
+  try {
+    const branch = execSync('git branch --show-current', { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+    const files = execSync('git status --porcelain', { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => line.slice(3).replace(/"/g, ''))
+      .slice(0, 8);
+
+    return {
+      branch: branch || '(detached)',
+      changedFiles: files
+    };
+  } catch (e) {
+    return {
+      branch: '(not a git repo)',
+      changedFiles: []
+    };
+  }
+};
+
+const showWorkflow = async (data) => {
+  console.clear();
+  console.log(chalk.cyan.bold('\n🔗 오늘 작업 흐름'));
+  console.log(chalk.gray('────────────────────────────────────────'));
+  const items = Array.isArray(data.workflow) ? data.workflow : [];
+  if (!items.length) {
+    console.log(chalk.gray('기록이 없습니다.'));
+  } else {
+    items.slice(0, 10).forEach((item, idx) => {
+      const time = item.completedAt ? new Date(item.completedAt).toLocaleString('ko-KR') : '-';
+      console.log(chalk.yellow(`${idx + 1}. ${item.task}`));
+      console.log(chalk.gray(`   시간: ${time}`));
+      console.log(chalk.gray(`   브랜치: ${item.git?.branch || '-'}`));
+      const files = item.git?.changedFiles || [];
+      if (files.length) {
+        console.log(chalk.gray(`   파일: ${files.join(', ')}`));
+      }
+    });
+  }
+  await inquirer.prompt([{ type: 'input', name: 'ok', message: '엔터를 누르면 돌아갑니다.' }]);
 };

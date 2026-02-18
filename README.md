@@ -1,5 +1,9 @@
 # 🎴 DevDeck (Developer's Command Center)
 
+**Language**: [한국어](README.md) | [English](README.en.md) | [日本語](README.ja.md) | [中文](README.zh-CN.md)
+
+> 기본 문서는 한국어(`README.md`)입니다. 원하는 언어를 위에서 선택하세요.
+
 > **"마우스에 손을 올리는 시간조차 아깝다."**
 > 개발자를 위한 올인원 터미널 생산성 도구 (일정, 음악, Git 관리)
 
@@ -144,6 +148,17 @@ This tool relies on `yt-dlp` and `mpv`. The user is responsible for complying wi
 
 This project is distributed under the **DevDeck Non-Commercial License**.
 See `LICENSE` for details.
+
+### License Summary (Important)
+
+- Commercial use is **not allowed**.
+- Selling this software (whole or partial) is **not allowed**.
+- Using this software in paid products/services or monetized distribution is **not allowed**.
+- Redistributions must include the original license notice.
+
+This is a custom non-commercial license and **not** an OSI-approved open-source license (such as MIT/Apache-2.0).
+
+See `CONTRIBUTING.md` for contribution licensing terms.
 
 ---
 

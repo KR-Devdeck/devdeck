@@ -4,6 +4,7 @@ import readline from 'readline';
 import net from 'net';
 import os from 'os';
 import path from 'path';
+import fs from 'fs';
 
 export class MusicPlayer {
   constructor() {
@@ -20,20 +21,46 @@ export class MusicPlayer {
     this.playbackPromise = null;
     this.stopRequested = false;
     this.currentTitle = '';
+    this.currentIndex = 0;
+    this.hadRestoredQueue = false;
+
+    this.stateDir = path.join(os.homedir(), '.devdeck');
+    this.stateFile = path.join(this.stateDir, 'music-state.json');
+    this.loadState();
   }
 
-  add(song) { this.queue.push(song); }
+  add(song) {
+    this.queue.push(song);
+    this.saveState();
+  }
 
   remove(index) {
     if (index < 0 || index >= this.queue.length) return false;
     this.queue.splice(index, 1);
+    if (this.currentIndex >= this.queue.length) {
+      this.currentIndex = Math.max(0, this.queue.length - 1);
+    }
+    if (index < this.currentIndex) {
+      this.currentIndex = Math.max(0, this.currentIndex - 1);
+    }
+    this.saveState();
     return true;
   }
 
-  setLoop(mode) { this.loopMode = mode; }
+  clearQueue() {
+    this.queue = [];
+    this.currentIndex = 0;
+    this.currentTitle = '';
+    this.saveState();
+  }
+
+  setLoop(mode) {
+    this.loopMode = mode;
+    this.saveState();
+  }
 
   isBackgroundRunning() {
-    return !!this.playbackPromise;
+    return !!this.playbackPromise || !!this.mpvProcess;
   }
 
   startBackgroundPlayback() {
@@ -45,6 +72,7 @@ export class MusicPlayer {
       this.playbackPromise = null;
       this.stopRequested = false;
       this.currentTitle = '';
+      this.saveState();
     });
     return true;
   }
@@ -58,6 +86,7 @@ export class MusicPlayer {
   async playQueue(options = {}) {
     const interactive = options.interactive !== false;
     if (this.queue.length === 0) return;
+    if (this.isPlaying && interactive) return;
 
     if (interactive) {
       if (process.stdin.isTTY) process.stdin.setRawMode(true);
@@ -66,11 +95,13 @@ export class MusicPlayer {
       readline.emitKeypressEvents(process.stdin);
     }
 
-    let index = 0;
+    let index = Math.min(Math.max(Number(this.currentIndex) || 0, 0), Math.max(0, this.queue.length - 1));
     while (index < this.queue.length) {
       if (this.stopRequested) break;
+      this.currentIndex = index;
       const song = this.queue[index];
       this.currentTitle = song.title || '';
+      this.saveState();
       
       // 노래 재생 (끝날 때까지 대기)
       const action = await this.playOneSong(song, index + 1, this.queue.length, { interactive });
@@ -90,6 +121,8 @@ export class MusicPlayer {
         // 일반 모드(NONE)거나 전체 반복(ALL)이면 무조건 다음 곡
         index++;
       }
+      this.currentIndex = Math.min(index, Math.max(0, this.queue.length - 1));
+      this.saveState();
 
       // 대기열 끝에 도달했을 때 처리
       if (index >= this.queue.length) {
@@ -113,6 +146,11 @@ export class MusicPlayer {
       if (process.stdin.isTTY) process.stdin.setRawMode(false);
       process.stdin.pause();
     }
+
+    if (this.loopMode === 'NONE' && this.currentIndex >= this.queue.length - 1 && !this.stopRequested) {
+      this.currentIndex = 0;
+    }
+    this.saveState();
   }
 
   playOneSong(song, currentIdx, totalIdx, options = {}) {
@@ -137,6 +175,9 @@ export class MusicPlayer {
       try {
         streamUrl = this.resolveStreamUrl(song.videoId);
       } catch (e) {
+        if (interactive) {
+          console.log(chalk.red('\n  🚫 스트림 URL을 가져오지 못했습니다. 다음 곡으로 넘어갑니다.'));
+        }
         setTimeout(() => resolve('SKIP'), 1000);
         return;
       }
@@ -245,6 +286,7 @@ export class MusicPlayer {
       } catch (e) {}
       this.mpvProcess = null;
     }
+    this.saveState();
   }
 
   startTimer(song, current, total) {
@@ -277,6 +319,7 @@ export class MusicPlayer {
   changeVolume(delta) {
     this.volume = Math.max(0, Math.min(100, this.volume + delta));
     this.sendCommand(`{ "command": ["set_property", "volume", ${this.volume}] }`);
+    this.saveState();
   }
 
   resolveStreamUrl(videoId) {
@@ -339,5 +382,36 @@ export class MusicPlayer {
     const min = Math.floor(seconds / 60);
     const sec = Math.floor(seconds % 60);
     return `${min}:${sec.toString().padStart(2, '0')}`;
+  }
+
+  loadState() {
+    try {
+      if (!fs.existsSync(this.stateFile)) return;
+      const raw = fs.readFileSync(this.stateFile, 'utf8');
+      const parsed = JSON.parse(raw);
+      this.queue = Array.isArray(parsed.queue) ? parsed.queue : [];
+      this.loopMode = ['NONE', 'ALL', 'ONE'].includes(parsed.loopMode) ? parsed.loopMode : 'NONE';
+      this.volume = Number.isFinite(parsed.volume) ? Math.max(0, Math.min(100, parsed.volume)) : 100;
+      this.currentIndex = Number.isInteger(parsed.currentIndex) ? Math.max(0, parsed.currentIndex) : 0;
+      this.hadRestoredQueue = this.queue.length > 0;
+    } catch (e) {
+      // ignore restore failure and keep defaults
+    }
+  }
+
+  saveState() {
+    try {
+      if (!fs.existsSync(this.stateDir)) fs.mkdirSync(this.stateDir, { recursive: true });
+      const payload = {
+        queue: this.queue,
+        loopMode: this.loopMode,
+        volume: this.volume,
+        currentIndex: this.currentIndex,
+        currentTitle: this.currentTitle
+      };
+      fs.writeFileSync(this.stateFile, JSON.stringify(payload, null, 2), 'utf8');
+    } catch (e) {
+      // ignore save failure
+    }
   }
 }
