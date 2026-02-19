@@ -69,19 +69,6 @@ npm run setup
 
 ---
 
-## Required Media Filenames
-
-Use these exact filenames for immediate rendering:
-
-- `docs/media/devdeck-demo.gif`
-- `docs/media/devdeck-hero.svg`
-- `docs/media/devdeck-logo.PNG`
-- `docs/media/preview-dashboard.png`
-- `docs/media/preview-music.png`
-- `docs/media/preview-git.png`
-
----
-
 ## Prerequisites
 
 - Node.js `>=18`

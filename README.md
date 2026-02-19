@@ -69,19 +69,6 @@ npm run setup
 
 ---
 
-## Required Media Filenames
-
-아래 파일명을 그대로 사용하면 README가 바로 렌더링됩니다.
-
-- `docs/media/devdeck-demo.gif`
-- `docs/media/devdeck-hero.svg`
-- `docs/media/devdeck-logo.PNG`
-- `docs/media/preview-dashboard.png`
-- `docs/media/preview-music.png`
-- `docs/media/preview-git.png`
-
----
-
 ## Prerequisites
 
 - Node.js `>=18`
