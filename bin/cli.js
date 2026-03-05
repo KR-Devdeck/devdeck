@@ -7,6 +7,22 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
+// 사용자 화면에는 Node 내부 DEP0190 경고를 숨기고, 다른 경고는 그대로 유지한다.
+const originalEmitWarning = process.emitWarning.bind(process);
+process.emitWarning = (warning, ...args) => {
+  const firstArg = args[0];
+  const secondArg = args[1];
+  const codeFromObject = firstArg && typeof firstArg === 'object' ? firstArg.code : undefined;
+  const codeFromSignature = typeof secondArg === 'string' ? secondArg : undefined;
+  const code = codeFromObject || codeFromSignature;
+
+  if (code === 'DEP0190') {
+    return;
+  }
+
+  return originalEmitWarning(warning, ...args);
+};
+
 // 각 앱의 메인 함수 가져오기
 import { runDaily } from '../apps/daily/index.js';
 import { runMusic } from '../apps/music/index.js';

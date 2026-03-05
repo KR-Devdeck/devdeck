@@ -183,14 +183,23 @@ export class MusicPlayer {
         return;
       }
 
+      // Windows에서는 mpv.com이 정책으로 차단될 수 있어 mpv.exe를 명시한다.
+      const mpvCommand = process.platform === 'win32' ? 'mpv.exe' : 'mpv';
+
       // --idle=no: 재생 끝나면 자동 종료
-      this.mpvProcess = spawn('mpv', [
+      this.mpvProcess = spawn(mpvCommand, [
         '--no-video',
         `--volume=${this.volume}`,
         `--input-ipc-server=${this.ipcPath}`,
         '--idle=no', 
         streamUrl
       ], { stdio: 'ignore' });
+
+      this.mpvProcess.on('error', (err) => {
+        this.cleanup();
+        console.log(chalk.red(`\n  🚫 mpv 실행 실패: ${err.code || err.message}`));
+        setTimeout(() => resolve('SKIP'), 1500);
+      });
 
       this.ipcClient = await this.connectToMpv();
       if (interactive) this.startTimer(song, currentIdx, totalIdx);
