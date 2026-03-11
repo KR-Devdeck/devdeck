@@ -166,7 +166,7 @@ const openConfigMenu = async () => {
     console.log(`  ${tr('cfg_cat_language', lang)}: ${t.accent(config.language || 'ko')}`);
     console.log(`  ${tr('cfg_auto_doctor', lang)}: ${t.accent(`${String(config.autoDoctor)} (${config.doctorCheckIntervalHours})`)}`);
     console.log(`  ${tr('cfg_auto_update', lang)}: ${t.accent(`${String(config.autoUpdate)} (${config.updateCheckIntervalHours})`)}`);
-    console.log(`  ${tr('cfg_default_playback', lang)}: ${t.accent(getModeLabel(config.defaultPlaybackMode, lang))} / ${tr('cfg_auto_resume', lang)}=${t.accent(String(config.autoResumeMusic))}`);
+    console.log(`  ${tr('cfg_default_playback', lang)}: ${t.accent(getModeLabel(config.defaultPlaybackMode, lang))} / ${tr('cfg_auto_resume', lang)}=${t.accent(String(config.autoResumeMusic))} / ${getRelatedConfigLabel(lang)}=${t.accent(String(config.autoRelatedMusic))}`);
     console.log('');
 
     const { action } = await inquirer.prompt([{
@@ -224,6 +224,7 @@ const openConfigMenu = async () => {
         choices: [
           { name: tr('playback_mode_item', lang, { value: getModeLabel(config.defaultPlaybackMode, lang) }), value: 'mode' },
           { name: tr('playback_resume_item', lang, { value: String(config.autoResumeMusic) }), value: 'resume' },
+          { name: getRelatedPlaybackItemLabel(lang, config.autoRelatedMusic), value: 'related' },
           { name: tr('back', lang), value: 'back' }
         ]
       }]);
@@ -248,6 +249,15 @@ const openConfigMenu = async () => {
           default: config.autoResumeMusic
         }]);
         updateConfig({ autoResumeMusic: value });
+      }
+      if (field === 'related') {
+        const { value } = await inquirer.prompt([{
+          type: 'confirm',
+          name: 'value',
+          message: getRelatedPlaybackPrompt(lang),
+          default: config.autoRelatedMusic
+        }]);
+        updateConfig({ autoRelatedMusic: value });
       }
     }
     if (action === 'startup') {
@@ -357,6 +367,28 @@ const runDefaultStartupFlow = async () => {
     await runToolByKey(config.startupTool);
   }
   await showMainMenu();
+};
+
+const getRelatedConfigLabel = (lang) => {
+  if (lang === 'en') return 'Related autoplay';
+  if (lang === 'ja') return '関連曲自動再生';
+  if (lang === 'zh-CN') return '相关歌曲自动播放';
+  return '연관곡 자동 재생';
+};
+
+const getRelatedPlaybackItemLabel = (lang, enabled) => {
+  const value = String(enabled);
+  if (lang === 'en') return `Autoplay related tracks (${value})`;
+  if (lang === 'ja') return `関連曲の自動再生 (${value})`;
+  if (lang === 'zh-CN') return `相关歌曲自动播放 (${value})`;
+  return `연관곡 자동 재생 (${value})`;
+};
+
+const getRelatedPlaybackPrompt = (lang) => {
+  if (lang === 'en') return 'When the queue ends, keep playing related tracks automatically?';
+  if (lang === 'ja') return 'キューが終わったら関連曲を自動再生しますか?';
+  if (lang === 'zh-CN') return '队列结束后自动继续播放相关歌曲吗?';
+  return '큐가 끝나면 연관곡을 자동으로 재생할까요?';
 };
 
 // 3. 실행 로직 판단

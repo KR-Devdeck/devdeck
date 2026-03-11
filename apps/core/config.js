@@ -16,6 +16,7 @@ const DEFAULT_CONFIG = {
   autoUpdate: true,
   updateCheckIntervalHours: 24,
   autoResumeMusic: true,
+  autoRelatedMusic: true,
   lastUpdateCheck: 0,
   lastDoctorCheck: 0
 };

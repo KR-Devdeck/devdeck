@@ -45,6 +45,22 @@ const saveSearchKeyword = (query) => {
   }
 };
 
+const normalizeRelatedSeed = (song) => {
+  const title = String(song?.title || '')
+    .replace(/\[[^\]]*\]/g, ' ')
+    .replace(/\([^)]*(official|audio|lyrics?|mv|video|live|remaster|ver\.?|version)[^)]*\)/gi, ' ')
+    .replace(/\b(feat\.?|ft\.?|with)\b.*$/i, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  const artist = String(song?.author?.name || '')
+    .replace(/\s+-\s+topic$/i, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  return { title, artist };
+};
+
 export const searchMenu = async () => {
   const allData = getHistoryData();
   const history = allData.searchHistory || []; 
@@ -258,6 +274,35 @@ const runYtDlpSearch = (query, limit) => {
 
     child.on('error', (err) => reject(err));
   });
+};
+
+export const findRelatedTrack = async (song, excludedVideoIds = []) => {
+  const { title, artist } = normalizeRelatedSeed(song);
+  const searches = [
+    [artist, title].filter(Boolean).join(' '),
+    title,
+    artist ? `${artist} songs` : ''
+  ].filter(Boolean);
+  const excluded = new Set(excludedVideoIds.filter(Boolean));
+
+  for (const query of searches) {
+    const results = await runYtDlpSearch(query, 12);
+    const related = results.find((item) => {
+      if (!item?.id || excluded.has(item.id)) return false;
+      if (song?.videoId && item.id === song.videoId) return false;
+      return true;
+    });
+    if (related) {
+      return {
+        title: related.title,
+        videoId: related.id,
+        duration: related.duration || 0,
+        author: { name: related.uploader || 'Unknown' }
+      };
+    }
+  }
+
+  return null;
 };
 
 const formatTime = (s) => s ? `${Math.floor(s/60)}:${(Math.floor(s%60)+'').padStart(2,'0')}` : '';

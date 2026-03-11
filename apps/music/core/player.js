@@ -6,6 +6,7 @@ import os from 'os';
 import path from 'path';
 import fs from 'fs';
 import { getConfig } from '../../core/config.js';
+import { findRelatedTrack } from './search.js';
 
 export class MusicPlayer {
   constructor() {
@@ -112,7 +113,6 @@ export class MusicPlayer {
       // 🛑 [수정된 부분] continue를 쓰지 않고 if-else로 깔끔하게 처리
       if (this.loopMode === 'ONE') {
         if (action === 'SKIP') {
-          // 한 곡 반복이어도 사용자가 '스킵'을 누르면 다음 곡으로
           index++;
         } else {
           // 자연스럽게 끝났다면(NEXT), index를 올리지 않음 (제자리 반복)
@@ -132,7 +132,9 @@ export class MusicPlayer {
         } else if (this.loopMode === 'ONE' && action !== 'SKIP') {
            // (예외 처리) 마지막 곡에서 한 곡 반복 중이면 인덱스 유지
            // (위에서 index++를 안 했으니 자동으로 유지되지만 안전장치)
-           index = this.queue.length - 1; 
+           index = this.queue.length - 1;
+        } else if (await this.tryAppendRelatedTrack(song, interactive)) {
+          index = this.queue.length - 1;
         } else {
           break; // 반복 없으면 종료
         }
@@ -357,6 +359,50 @@ export class MusicPlayer {
     throw new Error(this.t('stream_unresolved'));
   }
 
+  async tryAppendRelatedTrack(song, interactive) {
+    const config = getConfig();
+    if (!config.autoRelatedMusic || !song) return false;
+
+    try {
+      const excludedIds = this.queue.map((item) => item?.videoId).filter(Boolean);
+      const related = await findRelatedTrack(song, excludedIds);
+      if (!related) {
+        if (interactive) console.log(chalk.yellow(this.getRelatedMessage('failed')));
+        return false;
+      }
+
+      this.queue.push(related);
+      this.saveState();
+      if (interactive) {
+        console.log(chalk.green(this.getRelatedMessage('added', related.title)));
+      }
+      return true;
+    } catch (e) {
+      if (interactive) console.log(chalk.yellow(this.getRelatedMessage('failed')));
+      return false;
+    }
+  }
+
+  getRelatedMessage(type, title = '') {
+    const lang = getConfig().language || 'ko';
+    const messages = {
+      added: {
+        ko: `\n  ✨ 연관곡을 추가했습니다: ${title}`,
+        en: `\n  ✨ Added a related track: ${title}`,
+        ja: `\n  ✨ 関連曲を追加しました: ${title}`,
+        'zh-CN': `\n  ✨ 已添加相关歌曲: ${title}`
+      },
+      failed: {
+        ko: '\n  ℹ️ 연관곡을 찾지 못해 재생을 종료합니다.',
+        en: '\n  ℹ️ No related track found. Playback will stop.',
+        ja: '\n  ℹ️ 関連曲が見つからないため再生を終了します。',
+        'zh-CN': '\n  ℹ️ 未找到相关歌曲，播放将结束。'
+      }
+    };
+
+    return messages[type]?.[lang] ?? messages[type]?.ko ?? '';
+  }
+
   renderUI(song, current, total) {
     console.clear();
     const loopIcon = this.loopMode === 'ONE' ? '🔂 One' : this.loopMode === 'ALL' ? '🔁 All' : '➡️ Off';
@@ -438,3 +484,5 @@ export class MusicPlayer {
     return Object.entries(vars).reduce((acc, [k, v]) => acc.replaceAll(`{${k}}`, String(v)), raw);
   }
 }
+
+

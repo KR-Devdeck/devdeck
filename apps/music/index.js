@@ -3,7 +3,7 @@ import chalk from 'chalk';
 import { MusicPlayer } from './core/player.js';
 import { searchMenu } from './core/search.js';
 import { managePlaylists } from './core/playlist.js'; // ✅ 추가됨
-import { getConfig } from '../core/config.js';
+import { getConfig, updateConfig } from '../core/config.js';
 import { getTheme } from '../core/theme.js';
 import { tr } from '../core/i18n.js';
 
@@ -150,9 +150,11 @@ const openLibraryMenu = async (player) => {
 };
 
 const openSettingsMenu = async (player) => {
-  const lang = getConfig().language || 'ko';
+  const config = getConfig();
+  const lang = config.language || 'ko';
   const choices = [
-    { name: tr('music_settings_loop', lang), value: 'loop' }
+    { name: tr('music_settings_loop', lang), value: 'loop' },
+    { name: getRelatedAutoplayLabel(lang, config.autoRelatedMusic), value: 'related' }
   ];
   if (player.isBackgroundRunning()) {
     choices.push({ name: tr('music_settings_stop_bg', lang), value: 'stop_bg' });
@@ -180,6 +182,18 @@ const openSettingsMenu = async (player) => {
       ]
     }]);
     player.setLoop(mode);
+    console.log(chalk.green(tr('music_settings_changed', lang)));
+    await pause(800);
+  }
+
+  if (action === 'related') {
+    const { value } = await inquirer.prompt([{
+      type: 'confirm',
+      name: 'value',
+      message: getRelatedAutoplayPrompt(lang),
+      default: config.autoRelatedMusic
+    }]);
+    updateConfig({ autoRelatedMusic: value });
     console.log(chalk.green(tr('music_settings_changed', lang)));
     await pause(800);
   }
@@ -219,6 +233,21 @@ const manageQueue = async (player) => {
 };
 
 const pause = (ms) => new Promise(r => setTimeout(r, ms));
+
+const getRelatedAutoplayLabel = (lang, enabled) => {
+  const value = String(enabled);
+  if (lang === 'en') return `✨ Autoplay related tracks (${value})`;
+  if (lang === 'ja') return `✨ 関連曲の自動再生 (${value})`;
+  if (lang === 'zh-CN') return `✨ 相关歌曲自动播放 (${value})`;
+  return `✨ 연관곡 자동 재생 (${value})`;
+};
+
+const getRelatedAutoplayPrompt = (lang) => {
+  if (lang === 'en') return 'When the queue ends, add and play a related track automatically?';
+  if (lang === 'ja') return 'キュー終了時に関連曲を自動追加して再生しますか?';
+  if (lang === 'zh-CN') return '队列结束时自动添加并播放相关歌曲吗?';
+  return '재생 목록이 끝나면 연관곡을 자동으로 추가할까요?';
+};
 
 const maybeHandleRestoredQueue = async (player) => {
   if (!player.hadRestoredQueue || player.queue.length === 0 || player.isBackgroundRunning()) return;
